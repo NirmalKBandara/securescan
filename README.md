@@ -72,3 +72,4 @@ SecureScan is intended only for systems that the user owns or has explicit permi
 * [ ] Add automated tests
 * [ ] Complete documentation
 
+A more detailed architecture draft is available in [`architecture-v1`](docs/architecture/architecture-v1.md).

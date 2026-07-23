@@ -1,0 +1,75 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"github.com/NirmalKBandara/securescan/scanner-engine/internal/models"
+	"github.com/NirmalKBandara/securescan/scanner-engine/internal/scanner"
+	"log"
+	"os"
+	"time"
+)
+
+func main() {
+	target := flag.String(
+		"target",
+		"",
+		"authorized hostname or IP address to scan",
+	)
+
+	startPort := flag.Int(
+		"start-port",
+		1,
+		"first TCP port to scan",
+	)
+
+	endPort := flag.Int(
+		"end-port",
+		100,
+		"last TCP port to scan",
+	)
+
+	timeout := flag.Duration(
+		"timeout",
+		1*time.Second,
+		"connection timeout for each port",
+	)
+	flag.Parse()
+	config := models.ScanConfig{
+		Target:    *target,
+		StartPort: *startPort,
+		EndPort:   *endPort,
+		Timeout:   *timeout,
+	}
+	result, err := scanner.Scan(config)
+
+	if err != nil {
+		log.Printf("scan failed: %v", err)
+		os.Exit(1)
+	}
+	printResult(result)
+}
+
+func printResult(result models.ScanResult) {
+	fmt.Println("SecureScan TCP Connect Scanner")
+	fmt.Println("------------------------------")
+	fmt.Printf("Target: %s\n", result.Target)
+	fmt.Printf(
+		"Port range: %d-%d\n",
+		result.StartPort,
+		result.EndPort,
+	)
+	fmt.Printf("Duration: %s\n\n", result.Duration)
+
+	openPortCount := 0
+
+	for _, portResult := range result.Results {
+		if portResult.State == "open" {
+			fmt.Printf("[OPEN] Port %d\n", portResult.Port)
+			openPortCount++
+		}
+	}
+
+	fmt.Printf("\nOpen ports found: %d\n", openPortCount)
+	fmt.Printf("Ports checked: %d\n", len(result.Results))
+}

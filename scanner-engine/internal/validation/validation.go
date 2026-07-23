@@ -3,14 +3,14 @@ package validation
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"github.com/NirmalKBandara/securescan/scanner-engine/internal/models"
+	"strings"
 )
 
 const (
-	MinimumPort    = 1
-	MaximumPort    = 65535
-	MaximumPorts   = 1000
+	MinimumPort         = 1
+	MaximumPort         = 65535
+	MaximumPorts        = 1000
 	MaximumTargetLength = 253
 )
 

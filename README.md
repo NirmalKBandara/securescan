@@ -52,7 +52,9 @@ PostgreSQL
 
 ## Current Status
 
-The project is currently in the initial planning and setup stage.
+The Go scanner engine has been refactored and now includes Day 3 scan
+safety controls for target validation, unsafe address blocking, port limits
+and configurable concurrency.
 
 ## Security Notice
 
@@ -62,7 +64,9 @@ SecureScan is intended only for systems that the user owns or has explicit permi
 
 * [x] Initialize repository
 * [x] Create project structure
-* [ ] Refactor Go scanner engine
+* [x] Refactor Go scanner engine
+* [x] Add scanner target validation
+* [x] Add scan safety controls
 * [ ] Build Ballerina API
 * [ ] Add PostgreSQL storage
 * [ ] Build Next.js frontend

@@ -3,11 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	appconfig "github.com/NirmalKBandara/securescan/scanner-engine/internal/config"
 	"github.com/NirmalKBandara/securescan/scanner-engine/internal/models"
 	"github.com/NirmalKBandara/securescan/scanner-engine/internal/scanner"
 	"log"
 	"os"
-	"time"
 )
 
 func main() {
@@ -29,19 +29,26 @@ func main() {
 		"last TCP port to scan",
 	)
 
-	timeout := flag.Duration(
-		"timeout",
-		1*time.Second,
-		"connection timeout for each port",
-	)
 	flag.Parse()
-	config := models.ScanConfig{
-		Target:    *target,
-		StartPort: *startPort,
-		EndPort:   *endPort,
-		Timeout:   *timeout,
+
+	appConfig, err := appconfig.Load()
+	if err != nil {
+		log.Printf("invalid configuration: %v", err)
+		os.Exit(1)
 	}
-	result, err := scanner.Scan(config)
+
+	scanConfig := models.ScanConfig{
+		Target:              *target,
+		StartPort:           *startPort,
+		EndPort:             *endPort,
+		Timeout:             appConfig.ScanTimeout,
+		AllowPrivateTargets: appConfig.AllowPrivateTargets,
+		MaxPortsPerScan:     appConfig.MaxPortsPerScan,
+		MaxConcurrentPorts:  appConfig.MaxConcurrentPorts,
+		AllowedTargets:      appConfig.AllowedTargets,
+	}
+
+	result, err := scanner.Scan(scanConfig)
 
 	if err != nil {
 		log.Printf("scan failed: %v", err)

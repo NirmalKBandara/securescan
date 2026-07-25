@@ -1,82 +1,90 @@
 package main
 
 import (
-	"flag"
-	"fmt"
+	"encoding/json"
+	"log"
+	"net/http"
+	"os"
+
 	appconfig "github.com/NirmalKBandara/securescan/scanner-engine/internal/config"
 	"github.com/NirmalKBandara/securescan/scanner-engine/internal/models"
 	"github.com/NirmalKBandara/securescan/scanner-engine/internal/scanner"
-	"log"
-	"os"
 )
 
+const (
+	serviceAddress = ":8081"
+	serviceName    = "securescan-scanner"
+)
+
+type healthResponse struct {
+	Status  string `json:"status"`
+	Service string `json:"service"`
+}
+
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
 func main() {
-	target := flag.String(
-		"target",
-		"",
-		"authorized hostname or IP address to scan",
-	)
-
-	startPort := flag.Int(
-		"start-port",
-		1,
-		"first TCP port to scan",
-	)
-
-	endPort := flag.Int(
-		"end-port",
-		100,
-		"last TCP port to scan",
-	)
-
-	flag.Parse()
-
-	appConfig, err := appconfig.Load()
+	config, err := appconfig.Load()
 	if err != nil {
 		log.Printf("invalid configuration: %v", err)
 		os.Exit(1)
 	}
 
-	scanConfig := models.ScanConfig{
-		Target:              *target,
-		StartPort:           *startPort,
-		EndPort:             *endPort,
-		Timeout:             appConfig.ScanTimeout,
-		AllowPrivateTargets: appConfig.AllowPrivateTargets,
-		MaxPortsPerScan:     appConfig.MaxPortsPerScan,
-		MaxConcurrentPorts:  appConfig.MaxConcurrentPorts,
-		AllowedTargets:      appConfig.AllowedTargets,
+	server := &http.Server{
+		Addr:    serviceAddress,
+		Handler: loggingMiddleware(routes(config)),
 	}
 
-	result, err := scanner.Scan(scanConfig)
-
-	if err != nil {
-		log.Printf("scan failed: %v", err)
-		os.Exit(1)
+	log.Printf("%s listening on %s", serviceName, serviceAddress)
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("server failed: %v", err)
 	}
-	printResult(result)
 }
 
-func printResult(result models.ScanResult) {
-	fmt.Println("SecureScan TCP Connect Scanner")
-	fmt.Println("------------------------------")
-	fmt.Printf("Target: %s\n", result.Target)
-	fmt.Printf(
-		"Port range: %d-%d\n",
-		result.StartPort,
-		result.EndPort,
-	)
-	fmt.Printf("Duration: %s\n\n", result.Duration)
+func routes(config appconfig.Config) http.Handler {
+	return routesWithRunner(config, scanner.Scan)
+}
 
-	openPortCount := 0
+func routesWithRunner(
+	config appconfig.Config,
+	runner func(models.ScanConfig) (models.ScanResult, error),
+) http.Handler {
+	api := newAPI(config, runner)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", healthHandler)
+	mux.HandleFunc("/internal/scans", api.createScanHandler)
+	mux.HandleFunc("/internal/scans/", api.getScanHandler)
+	return mux
+}
 
-	for _, portResult := range result.Results {
-		if portResult.State == "open" {
-			fmt.Printf("[OPEN] Port %d\n", portResult.Port)
-			openPortCount++
-		}
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, errorResponse{
+			Error: "method not allowed",
+		})
+		return
 	}
 
-	fmt.Printf("\nOpen ports found: %d\n", openPortCount)
-	fmt.Printf("Ports checked: %d\n", len(result.Results))
+	writeJSON(w, http.StatusOK, healthResponse{
+		Status:  "ok",
+		Service: serviceName,
+	})
+}
+
+func writeJSON(w http.ResponseWriter, statusCode int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	if err := json.NewEncoder(w).Encode(value); err != nil {
+		log.Printf("failed to encode JSON response: %v", err)
+	}
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s", r.Method, r.URL.Path)
+		next.ServeHTTP(w, r)
+	})
 }

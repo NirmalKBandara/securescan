@@ -52,9 +52,10 @@ PostgreSQL
 
 ## Current Status
 
-The Go scanner engine has been refactored and now includes Day 3 scan
-safety controls for target validation, unsafe address blocking, port limits
-and configurable concurrency.
+The Go scanner engine now runs as an internal HTTP service. It provides a
+health check, accepts validated scan jobs, generates UUID job identifiers,
+runs scans asynchronously and exposes job status and results through JSON.
+Day 3 target safety, port limits and concurrency controls remain enforced.
 
 ## Security Notice
 
@@ -67,6 +68,8 @@ SecureScan is intended only for systems that the user owns or has explicit permi
 * [x] Refactor Go scanner engine
 * [x] Add scanner target validation
 * [x] Add scan safety controls
+* [x] Add internal Go scanner HTTP service
+* [x] Add asynchronous scan jobs and status retrieval
 * [ ] Build Ballerina API
 * [ ] Add PostgreSQL storage
 * [ ] Build Next.js frontend
@@ -76,4 +79,7 @@ SecureScan is intended only for systems that the user owns or has explicit permi
 * [ ] Add automated tests
 * [ ] Complete documentation
 
-A more detailed architecture draft is available in [`architecture-v1`](docs/architecture/architecture-v1.md).
+A more detailed architecture draft is available in [`architecture`](docs/architecture/architecture-v1.md).
+
+The scanner's internal API is documented in
+[`scanner-service-api`](docs/api/scanner-service-api.md).

@@ -21,24 +21,40 @@ connect scanning within SecureScan.
 - Added structured scan models
 - Added error handling
 - Removed reliance on shell commands
+- Added an internal HTTP service on port 8081
+- Added health, scan creation and scan status endpoints
+- Added UUID-based asynchronous scan jobs
+- Added structured JSON responses and request logging
 
 ## Package Structure
 
 ```text
 scanner-engine/
-├── cmd/server/main.go
+├── cmd/
+│   ├── cli/main.go
+│   └── server/
+│       ├── main.go
+│       ├── scans.go
+│       ├── jobs.go
+│       ├── get_scan.go
+│       └── uuid.go
 ├── internal/config/config.go
 ├── internal/models/models.go
 ├── internal/scanner/scanner.go
 ├── internal/validation/ports.go
 ├── internal/validation/validation.go
 └── go.mod
-````
+```
 
 ### `cmd/server`
 
-Contains the command-line entry point. It reads command-line flags,
-creates a scan configuration, starts the scanner and displays results.
+Contains the internal HTTP service. It accepts JSON scan requests, validates
+them, stores jobs in memory and runs scans asynchronously.
+
+### `cmd/cli`
+
+Contains the original command-line scanner. It remains available for direct
+development and debugging.
 
 ### `internal/models`
 
@@ -127,10 +143,27 @@ This approach:
 * Improves portability
 * Makes the scanner easier to test and maintain
 
-## Run
+## Run HTTP Service
 
 ```bash
-go run ./cmd/server \
+go run ./cmd/server
+```
+
+The service listens on `http://localhost:8081`. Its endpoints are:
+
+```text
+GET  /health
+POST /internal/scans
+GET  /internal/scans/{id}
+```
+
+Full request, response and error documentation is available in
+[`scanner-service-api.md`](../docs/api/scanner-service-api.md).
+
+## Run CLI
+
+```bash
+go run ./cmd/cli \
   -target scanme.nmap.org \
   -start-port 20 \
   -end-port 25
@@ -151,3 +184,5 @@ go test ./...
 ## Current Limitations
 
 * Open and closed are the only displayed states
+* Scan jobs are kept in memory and are lost when the service restarts
+* Authentication and authorization will be handled by later platform layers

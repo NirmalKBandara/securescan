@@ -52,14 +52,15 @@ PostgreSQL
 
 ## Current Status
 
-The Go scanner engine now runs as an internal HTTP service. It provides a
-health check, accepts validated scan jobs, generates UUID job identifiers,
-runs scans asynchronously and exposes job status and results through JSON.
-Day 3 target safety, port limits and concurrency controls remain enforced.
+The Ballerina integration API has also been initialized. It provides a
+configurable HTTP listener, a typed `GET /health` endpoint, consistent public
+JSON response envelopes, and an automated health endpoint test. Public scan
+endpoints and Go scanner integration will be added during Days 6–9.
 
 ## Security Notice
 
-SecureScan is intended only for systems that the user owns or has explicit permission to test. Unauthorized scanning is prohibited.
+SecureScan is intended only for systems that the user owns or has explicit permission to test. 
+Unauthorized scanning is prohibited.
 
 ## Roadmap
 

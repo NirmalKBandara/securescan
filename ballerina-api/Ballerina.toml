@@ -1,0 +1,9 @@
+[package]
+org = "securescan"
+name = "ballerina_api"
+version = "0.1.0"
+distribution = "2201.13.4"
+
+[build-options]
+# Later connect this to metrics and tracing.
+observabilityIncluded = true

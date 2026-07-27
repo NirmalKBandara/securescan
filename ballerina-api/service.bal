@@ -3,7 +3,7 @@ import ballerina/http;
 configurable int listenerPort = 9090;
 configurable string serviceName = "securescan-api";
 
-// Resource below becomes GET /health.
+// Public SecureScan API service.
 service / on new http:Listener(listenerPort) {
 
     resource function get health() returns HealthOk {
@@ -12,7 +12,6 @@ service / on new http:Listener(listenerPort) {
             serviceName: serviceName
         };
 
-        // Serializes this typed record as JSON.
         return {
             body: {
                 success: true,
@@ -20,4 +19,108 @@ service / on new http:Listener(listenerPort) {
             }
         };
     }
+
+    // Validate and bind the public API contract only.
+    resource function post api/v1/scans(@http:Payload CreateScanRequest request)
+            returns CreateScanAccepted|BadRequestError {
+
+        BadRequestError? validationError = validateCreateScanRequest(request);
+        if validationError is BadRequestError {
+            return validationError;
+        }
+
+        CreateScanData scanData = {
+            // Later replace this with the Go scanner job ID.
+            id: "contract-validation-only",
+            status: "validated",
+            target: request.target,
+            startPort: request.startPort,
+            endPort: request.endPort
+        };
+
+        return {
+            body: {
+                success: true,
+                data: scanData
+            }
+        };
+    }
+}
+
+// Public request validation close to the API boundary.
+function validateCreateScanRequest(CreateScanRequest request) returns BadRequestError? {
+    string trimmedTarget = request.target.trim();
+
+    if trimmedTarget == "" {
+        return badRequest(
+                INVALID_TARGET,
+                "Target is required",
+                {
+                    "field": "target"
+                }
+        );
+    }
+
+    if request.startPort < 1 || request.startPort > 65535 {
+        return badRequest(
+                INVALID_PORT_RANGE,
+                "Start port must be between 1 and 65535",
+                {
+                    "field": "startPort",
+                    min: 1,
+                    max: 65535
+                }
+        );
+    }
+
+    if request.endPort < 1 || request.endPort > 65535 {
+        return badRequest(
+                INVALID_PORT_RANGE,
+                "End port must be between 1 and 65535",
+                {
+                    "field": "endPort",
+                    min: 1,
+                    max: 65535
+                }
+        );
+    }
+
+    if request.startPort > request.endPort {
+        return badRequest(
+                INVALID_PORT_RANGE,
+                "Start port must be less than or equal to end port",
+                {
+                    startPort: request.startPort,
+                    endPort: request.endPort
+                }
+        );
+    }
+
+    if !request.authorized {
+        return badRequest(
+                BLOCKED_TARGET,
+                "Authorized-use confirmation is required before creating a scan",
+                {
+                    "field": "authorized"
+                }
+        );
+    }
+
+    return ();
+}
+
+// Builds one stable public 400 response.
+function badRequest(string code, string message, map<json> details)
+        returns BadRequestError {
+
+    return {
+        body: {
+            success: false,
+            'error: {
+                code: code,
+                message: message,
+                details: details
+            }
+        }
+    };
 }

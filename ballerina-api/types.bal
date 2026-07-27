@@ -1,47 +1,68 @@
 import ballerina/http;
 
-// The common envelope for successful public API responses.
+// Common success envelope for public API responses.
 public type SuccessResponse record {|
     boolean success;
     json data;
 |};
 
-// ApiError contains safe, client-facing error information.
+// Stable public error codes used by clients and tests.
+public const string INVALID_TARGET = "INVALID_TARGET";
+public const string INVALID_PORT_RANGE = "INVALID_PORT_RANGE";
+public const string BLOCKED_TARGET = "BLOCKED_TARGET";
+public const string SCANNER_UNAVAILABLE = "SCANNER_UNAVAILABLE";
+public const string INTERNAL_ERROR = "INTERNAL_ERROR";
 
-// `code` : intended for application logic, for example: INVALID_TARGET, BLOCKED_TARGET, or INTERNAL_ERROR.
-// `message` : human-readable explanation.
-// `details` : optional and can later hold safe validation information.
-
+// Safe client-facing error object.
 public type ApiError record {|
     string code;
     string message;
     map<json> details?;
 |};
 
-// The common envelope for all public API errors.
-
-// Ex:
-// {
-//   "success": false,
-//   "errorName": {
-//     "code": "INVALID_TARGET",
-//     "message": "The supplied target is invalid"
-//   }
-// }
-
+// Common error envelope for all public API errors.
 public type ErrorResponse record {|
     boolean success;
-    ApiError errorName;
+    ApiError 'error;
 |};
 
-// The endpoint-specific data returned by GET /health.
+// GET /health response data.
 public type HealthData record {|
     string status;
     string serviceName;
 |};
 
-// HealthOk explicitly connects the response body with HTTP 200 OK.
+// GET /health 200 response.
 public type HealthOk record {|
     *http:Ok;
     SuccessResponse body;
+|};
+
+// Public scan creation request.
+public type CreateScanRequest record {|
+    string target;
+    int startPort;
+    int endPort;
+    boolean authorized;
+|};
+
+// Public scan creation response data.
+public type CreateScanData record {|
+    string id;
+    string status;
+    string target;
+    int startPort;
+    int endPort;
+|};
+
+// POST /api/v1/scans success response.
+public type CreateScanAccepted record {|
+    *http:Accepted;
+    SuccessResponse body;
+|};
+
+// 400 response for validation failures.
+public type BadRequestError record {|
+    *http:BadRequest;
+    ErrorResponse body;
 |};

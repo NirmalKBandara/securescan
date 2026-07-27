@@ -5,10 +5,8 @@ final http:Client healthClient = check new ("http://localhost:9091");
 
 @test:Config {}
 function testHealthEndpoint() returns error? {
-    // HTTP GET request to the service.
     http:Response response = check healthClient->/health;
 
-    // Verify that the endpoint returns the required status code.
     test:assertEquals(
             response.statusCode,
             http:STATUS_OK,
@@ -25,10 +23,99 @@ function testHealthEndpoint() returns error? {
         }
     };
 
-    // Verify the complete public response contract.
     test:assertEquals(
             actualPayload,
             expectedPayload,
             msg = "GET /health returned an unexpected JSON response"
     );
+}
+
+@test:Config {}
+function testCreateScanAcceptsValidRequest() returns error? {
+    json requestBody = {
+        target: "scanme.nmap.org",
+        startPort: 1,
+        endPort: 100,
+        authorized: true
+    };
+
+    http:Response response = check healthClient->/api/v1/scans.post(requestBody);
+
+    test:assertEquals(
+            response.statusCode,
+            http:STATUS_ACCEPTED,
+            msg = "Valid scan request must return HTTP 202"
+    );
+
+    json actualPayload = check response.getJsonPayload();
+
+    json expectedPayload = {
+        "success": true,
+        "data": {
+            "id": "contract-validation-only",
+            "status": "validated",
+            "target": "scanme.nmap.org",
+            "startPort": 1,
+            "endPort": 100
+        }
+    };
+
+    test:assertEquals(actualPayload, expectedPayload);
+}
+
+@test:Config {}
+function testCreateScanRejectsEmptyTarget() returns error? {
+    json requestBody = {
+        target: "",
+        startPort: 1,
+        endPort: 100,
+        authorized: true
+    };
+
+    http:Response response = check healthClient->/api/v1/scans.post(requestBody);
+
+    test:assertEquals(response.statusCode, http:STATUS_BAD_REQUEST);
+
+    json actualPayload = check response.getJsonPayload();
+
+    test:assertEquals(actualPayload.success, false);
+    test:assertEquals(actualPayload.'error.code, "INVALID_TARGET");
+}
+
+@test:Config {}
+function testCreateScanRejectsInvalidPortRange() returns error? {
+    json requestBody = {
+        target: "scanme.nmap.org",
+        startPort: 100,
+        endPort: 1,
+        authorized: true
+    };
+
+    http:Response response = check healthClient->/api/v1/scans.post(requestBody);
+
+    test:assertEquals(response.statusCode, http:STATUS_BAD_REQUEST);
+
+    json actualPayload = check response.getJsonPayload();
+
+    test:assertEquals(actualPayload.success, false);
+    test:assertEquals(actualPayload.'error.code, "INVALID_PORT_RANGE");
+}
+
+@test:Config {}
+function testCreateScanRequiresAuthorizationConfirmation() returns error? {
+    json requestBody = {
+        target: "scanme.nmap.org",
+        startPort: 1,
+        endPort: 100,
+        authorized: false
+    };
+
+    http:Response response = check healthClient->/api/v1/scans.post(requestBody);
+
+    test:assertEquals(response.statusCode, http:STATUS_BAD_REQUEST);
+
+    json actualPayload = check response.getJsonPayload();
+
+    test:assertEquals(actualPayload.success, false);
+    test:assertEquals(actualPayload.'error.code, "BLOCKED_TARGET");
 }

@@ -9,6 +9,8 @@ It will validate public requests, orchestrate scanner jobs, communicate with the
 - `GET /health`
 - Stable success and error response envelopes
 - An automated health endpoint test
+- Public scan creation contract: `POST /api/v1/scans`
+- Request validation for required target, port boundaries, and authorized-use confirmation
 
 ---> The Ballerina service does not communicate with the Go scanner yet.
 
@@ -69,3 +71,14 @@ bal build
 ```
 
 Generated build artifacts are written to `target/`.
+
+## Create Scan Contract Check
+
+```bash
+curl --include \
+  --request POST \
+  --header "Content-Type: application/json" \
+  --data '{"target":"scanme.nmap.org","startPort":1,"endPort":100,"authorized":true}' \
+  http://localhost:9090/api/v1/scans
+  ```
+  

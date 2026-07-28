@@ -66,3 +66,9 @@ public type BadRequestError record {|
     *http:BadRequest;
     ErrorResponse body;
 |};
+
+// Safe fallback for unexpected downstream.
+public type InternalServerErrorResponse record {|
+    *http:InternalServerError;
+    ErrorResponse body;
+|};

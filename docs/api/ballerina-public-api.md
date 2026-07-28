@@ -28,7 +28,7 @@ Status: 202 Accepted
 {
   "success": true,
   "data": {
-    "id": "contract-validation-only",
+    "UUID": "contract-validation-only",
     "status": "validated",
     "target": "scanme.nmap.org",
     "startPort": 1,

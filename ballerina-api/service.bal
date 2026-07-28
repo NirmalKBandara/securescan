@@ -22,20 +22,35 @@ service / on new http:Listener(listenerPort) {
 
     // Validate and bind the public API contract only.
     resource function post api/v1/scans(@http:Payload CreateScanRequest request)
-            returns CreateScanAccepted|BadRequestError {
+            returns CreateScanAccepted|BadRequestError|InternalServerErrorResponse {
 
         BadRequestError? validationError = validateCreateScanRequest(request);
         if validationError is BadRequestError {
             return validationError;
         }
 
+        ScannerCreateResponse|error scannerResult = createScannerJob(request);
+
+        // Never return the downstream error, URL, or body to the public client.
+        if scannerResult is error {
+            InternalServerErrorResponse internalError = {
+                body: {
+                    success: false,
+                    'error: {
+                        code: INTERNAL_ERROR,
+                        message: "Unable to create the scan"
+                    }
+                }
+            };
+            return internalError;
+        }
+
         CreateScanData scanData = {
-            // Later replace this with the Go scanner job ID.
-            id: "contract-validation-only",
-            status: "validated",
-            target: request.target,
-            startPort: request.startPort,
-            endPort: request.endPort
+            id: scannerResult.id,
+            status: scannerResult.status,
+            target: scannerResult.target,
+            startPort: scannerResult.startPort,
+            endPort: scannerResult.endPort
         };
 
         return {

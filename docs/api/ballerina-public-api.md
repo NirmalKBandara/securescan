@@ -28,13 +28,12 @@ Status: 202 Accepted
 {
   "success": true,
   "data": {
-    "UUID": "contract-validation-only",
-    "status": "validated",
+    "id": "945686d6-c53f-4717-9d98-51f913fc8904",
+    "status": "accepted",
     "target": "scanme.nmap.org",
     "startPort": 1,
     "endPort": 100
   }
-}
 ```
 
 ### Validation Errors

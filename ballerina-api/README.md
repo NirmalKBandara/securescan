@@ -11,6 +11,9 @@ It will validate public requests, orchestrate scanner jobs, communicate with the
 - An automated health endpoint test
 - Public scan creation contract: `POST /api/v1/scans`
 - Request validation for required target, port boundaries, and authorized-use confirmation
+- Configured HTTP client for the Go scanner
+- Real integration with POST /internal/scans
+- Public POST /api/v1/scans creates a real Go scan job
 
 ## Requirements
 

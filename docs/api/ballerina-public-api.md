@@ -9,6 +9,13 @@ Creates a scan request after public API validation.
 For now, only validates the request contract. 
 It does not call the Go scanner yet.
 
+## GET /api/v1/scans/{scanId}
+
+Returns the current state of a Go scanner job.
+Successful response: `200 OK`
+The `X-Request-ID` response header identifies the corresponding safe
+application-log entries.
+
 ### Request
 
 ```json
@@ -64,3 +71,6 @@ Status: 400 Bad Request
 | `BLOCKED_TARGET` | Request is not allowed by the public safety policy |
 | `SCANNER_UNAVAILABLE` | Internal scanner cannot be reached |
 | `INTERNAL_ERROR` | Unexpected server error |
+| `INVALID_SCAN_ID` | The supplied scan ID is not a valid UUID |
+| `SCAN_NOT_FOUND` | No job exists for the valid scan UUID |
+| `SCANNER_UNAVAILABLE` | The internal scanner is unreachable or timed out |

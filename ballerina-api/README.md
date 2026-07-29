@@ -11,6 +11,10 @@ It will validate public requests, orchestrate scanner jobs, communicate with the
 - An automated health endpoint test
 - Public scan creation contract: `POST /api/v1/scans`
 - Request validation for required target, port boundaries, and authorized-use confirmation
+- `GET /api/v1/scans/{scanId}`
+- Configurable scanner connection and response timeouts
+- Safe public mapping for validation, blocked, not-found, unavailable, and internal errors
+- Generated `X-Request-ID` response headers and structured application logs
 
 ## Requirements
 

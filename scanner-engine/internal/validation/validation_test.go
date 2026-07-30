@@ -67,6 +67,9 @@ func TestValidateTargetDirectIP(t *testing.T) {
 			if test.wantError && err == nil {
 				t.Fatal("expected an error, but received nil")
 			}
+			if test.wantError && !IsBlockedTargetError(err) {
+				t.Fatalf("expected blocked-target classification, got %v", err)
+			}
 
 			if !test.wantError && err != nil {
 				t.Fatalf("expected no error, but received: %v", err)
@@ -135,12 +138,18 @@ func TestValidateTargetRejectsHostnameWithBlockedResolvedIP(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected hostname resolving to private IP to be rejected")
 	}
+	if !IsBlockedTargetError(err) {
+		t.Fatalf("expected blocked-target classification, got %v", err)
+	}
 }
 
 func TestValidateTargetAllowlist(t *testing.T) {
 	_, err := ValidateTarget("8.8.8.8", false, []string{"1.1.1.1"})
 	if err == nil {
 		t.Fatal("expected target outside allowlist to be rejected")
+	}
+	if !IsBlockedTargetError(err) {
+		t.Fatalf("expected blocked-target classification, got %v", err)
 	}
 
 	_, err = ValidateTarget("8.8.8.8", false, []string{"8.8.8.8"})

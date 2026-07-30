@@ -8,6 +8,7 @@ public type SuccessResponse record {|
 public const string INVALID_TARGET = "INVALID_TARGET";
 public const string INVALID_PORT_RANGE = "INVALID_PORT_RANGE";
 public const string INVALID_SCAN_ID = "INVALID_SCAN_ID";
+public const string INVALID_REQUEST = "INVALID_REQUEST";
 public const string BLOCKED_TARGET = "BLOCKED_TARGET";
 public const string SCAN_NOT_FOUND = "SCAN_NOT_FOUND";
 public const string SCANNER_UNAVAILABLE = "SCANNER_UNAVAILABLE";
@@ -47,17 +48,22 @@ public type CreateScanRequest record {|
     boolean authorized;
 |};
 
+public type ScanJobStatus "accepted"|"running"|"completed"|"failed";
+
+public type ScanPortState "open"|"closed";
+
 public type CreateScanData record {|
     string id;
-    string status;
+    ScanJobStatus status;
     string target;
     int startPort;
     int endPort;
 |};
 
 public type ScanPortResult record {|
+    string address;
     int port;
-    string state;
+    ScanPortState state;
 |};
 
 public type ScanResultData record {|
@@ -70,7 +76,7 @@ public type ScanResultData record {|
 
 public type ScanStatusData record {|
     string id;
-    string status;
+    ScanJobStatus status;
     string target;
     int startPort;
     int endPort;

@@ -15,6 +15,35 @@ const (
 	MaximumTargetLength = 253
 )
 
+type TargetErrorKind string
+
+const (
+	InvalidTarget TargetErrorKind = "invalid"
+	BlockedTarget TargetErrorKind = "blocked"
+)
+
+type TargetError struct {
+	Kind    TargetErrorKind
+	Message string
+}
+
+func (err *TargetError) Error() string {
+	return err.Message
+}
+
+func newTargetError(kind TargetErrorKind, message string) error {
+	return &TargetError{Kind: kind, Message: message}
+}
+
+func newTargetErrorf(kind TargetErrorKind, format string, args ...any) error {
+	return newTargetError(kind, fmt.Sprintf(format, args...))
+}
+
+func IsBlockedTargetError(err error) bool {
+	var targetErr *TargetError
+	return errors.As(err, &targetErr) && targetErr.Kind == BlockedTarget
+}
+
 type ValidatedTarget struct {
 	Original string
 	IPs      []net.IP
@@ -59,27 +88,41 @@ func ValidateTarget(
 	target = strings.TrimSpace(target)
 
 	if target == "" {
-		return ValidatedTarget{}, errors.New("target cannot be empty")
+		return ValidatedTarget{}, newTargetError(
+			InvalidTarget,
+			"target cannot be empty",
+		)
 	}
 
 	if len(target) > MaximumTargetLength {
-		return ValidatedTarget{}, fmt.Errorf(
+		return ValidatedTarget{}, newTargetErrorf(
+			InvalidTarget,
 			"target cannot exceed %d characters",
 			MaximumTargetLength,
 		)
 	}
 
 	if strings.ContainsAny(target, " \t\r\n") {
-		return ValidatedTarget{}, errors.New("target cannot contain whitespace")
+		return ValidatedTarget{}, newTargetError(
+			InvalidTarget,
+			"target cannot contain whitespace",
+		)
 	}
 
 	if !isAllowedTarget(target, allowedTargets) {
-		return ValidatedTarget{}, errors.New("target is not in the configured allowlist")
+		return ValidatedTarget{}, newTargetError(
+			BlockedTarget,
+			"target is not in the configured allowlist",
+		)
 	}
 
 	if ip := net.ParseIP(target); ip != nil {
 		if isBlockedIP(ip, allowPrivate) {
-			return ValidatedTarget{}, fmt.Errorf("target IP %s is blocked", ip.String())
+			return ValidatedTarget{}, newTargetErrorf(
+				BlockedTarget,
+				"target IP %s is blocked",
+				ip.String(),
+			)
 		}
 
 		return ValidatedTarget{
@@ -89,21 +132,29 @@ func ValidateTarget(
 	}
 
 	if err := validateHostname(target); err != nil {
-		return ValidatedTarget{}, err
+		return ValidatedTarget{}, newTargetError(InvalidTarget, err.Error())
 	}
 
 	ips, err := lookupIP(target)
 	if err != nil {
-		return ValidatedTarget{}, fmt.Errorf("failed to resolve target hostname: %w", err)
+		return ValidatedTarget{}, newTargetErrorf(
+			InvalidTarget,
+			"failed to resolve target hostname: %v",
+			err,
+		)
 	}
 
 	if len(ips) == 0 {
-		return ValidatedTarget{}, errors.New("target hostname resolved to no IP addresses")
+		return ValidatedTarget{}, newTargetError(
+			InvalidTarget,
+			"target hostname resolved to no IP addresses",
+		)
 	}
 
 	for _, ip := range ips {
 		if isBlockedIP(ip, allowPrivate) {
-			return ValidatedTarget{}, fmt.Errorf(
+			return ValidatedTarget{}, newTargetErrorf(
+				BlockedTarget,
 				"target hostname resolved to blocked IP %s",
 				ip.String(),
 			)

@@ -11,12 +11,26 @@ service / on new http:Listener(listenerPort) {
         return {body: {success: true, data: healthData}};
     }
 
-    resource function post api/v1/scans(@http:Payload CreateScanRequest request)
+    resource function post api/v1/scans(http:Request httpRequest)
             returns CreateScanAccepted|BadRequestError|ServiceUnavailableError|
             InternalServerErrorResponse {
         string requestId = uuid:createType4AsString();
         log:printInfo("Scan create request received",
                 requestId = requestId, operation = "createScan");
+
+        // Parse inside the resource so malformed or wrongly shaped requests
+        // still receive the standard envelope and correlation ID.
+        json|http:ClientError payload = httpRequest.getJsonPayload();
+        if payload is http:ClientError {
+            return badRequest(INVALID_REQUEST,
+                    "Request body must contain valid JSON", {}, requestId);
+        }
+        CreateScanRequest|error boundRequest = payload.cloneWithType();
+        if boundRequest is error {
+            return badRequest(INVALID_REQUEST,
+                    "Request body does not match the scan contract", {}, requestId);
+        }
+        CreateScanRequest request = boundRequest;
 
         BadRequestError? validationError = validateCreateScanRequest(request, requestId);
         if validationError is BadRequestError {
@@ -72,7 +86,11 @@ service / on new http:Listener(listenerPort) {
         if possibleResult is ScannerResult {
             ScannerResult internalResult = possibleResult;
             ScanPortResult[] ports = from ScannerPortResult port in internalResult.results
-                select {port: port.port, state: port.state};
+                select {
+                    address: port.address,
+                    port: port.port,
+                    state: port.state
+                };
             publicResult = {
                 target: internalResult.target,
                 startPort: internalResult.startPort,

@@ -19,15 +19,16 @@ type ScannerCreateRequest record {|
 
 type ScannerCreateResponse record {|
     string id;
-    string status;
+    ScanJobStatus status;
     string target;
     int startPort;
     int endPort;
 |};
 
 type ScannerPortResult record {|
+    string address;
     int port;
-    string state;
+    ScanPortState state;
     string? 'error = ();
 |};
 
@@ -41,7 +42,7 @@ type ScannerResult record {|
 
 type ScannerStatusResponse record {|
     string id;
-    string status;
+    ScanJobStatus status;
     string target;
     int startPort;
     int endPort;
@@ -53,6 +54,11 @@ type ScannerStatusResponse record {|
 
 type ScannerFailure record {|
     string code;
+|};
+
+type ScannerErrorResponse record {|
+    string code;
+    string 'error;
 |};
 
 function createScannerJob(CreateScanRequest request, string requestId)
@@ -87,7 +93,7 @@ function createScannerJob(CreateScanRequest request, string requestId)
         return {code: INTERNAL_ERROR};
     }
     ScannerCreateResponse|error response = payload.cloneWithType();
-    if response is error {
+    if response is error || response.status != "accepted" {
         return {code: INTERNAL_ERROR};
     }
     return response;
@@ -119,7 +125,7 @@ function getScannerJob(string scanId, string requestId)
         return {code: INTERNAL_ERROR};
     }
     ScannerStatusResponse|error response = payload.cloneWithType();
-    if response is error {
+    if response is error || !hasValidLifecycleShape(response) {
         return {code: INTERNAL_ERROR};
     }
     return response;
@@ -130,16 +136,31 @@ function classifyScannerBadRequest(http:Response response) returns ScannerFailur
     if payload is http:ClientError {
         return {code: INTERNAL_ERROR};
     }
-    string prose = payload.toJsonString().toLowerAscii();
-    if prose.includes("blocked") || prose.includes("allowlist") ||
-            prose.includes("private") {
+    ScannerErrorResponse|error scannerError = payload.cloneWithType();
+    if scannerError is error {
+        return {code: INTERNAL_ERROR};
+    }
+    if scannerError.code == BLOCKED_TARGET {
         return {code: BLOCKED_TARGET};
     }
-    if prose.includes("port") {
+    if scannerError.code == INVALID_PORT_RANGE {
         return {code: INVALID_PORT_RANGE};
     }
-    if prose.includes("target") || prose.includes("host") {
+    if scannerError.code == INVALID_TARGET {
         return {code: INVALID_TARGET};
     }
     return {code: INTERNAL_ERROR};
+}
+
+// Enforce the Go job lifecycle before projecting downstream data publicly.
+// Literal status/state types reject arbitrary diagnostic strings, while these
+// checks reject otherwise well-typed but internally inconsistent payloads.
+function hasValidLifecycleShape(ScannerStatusResponse response) returns boolean {
+    if response.status == "completed" {
+        return response.result is ScannerResult && response.'error is ();
+    }
+    if response.status == "failed" {
+        return response.result is ();
+    }
+    return response.result is () && response.'error is ();
 }

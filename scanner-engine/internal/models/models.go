@@ -16,9 +16,10 @@ type ScanConfig struct {
 
 // Represents the result of scanning one TCP port.
 type PortResult struct {
-	Port  int    `json:"port"`
-	State string `json:"state"`
-	Error string `json:"error,omitempty"`
+	Address string `json:"address,omitempty"`
+	Port    int    `json:"port"`
+	State   string `json:"state"`
+	Error   string `json:"error,omitempty"`
 }
 
 // Contains the complete result of one scan request.

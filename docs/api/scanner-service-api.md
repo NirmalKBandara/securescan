@@ -112,6 +112,7 @@ Successful response: `200 OK`
     "endPort": 2,
     "results": [
       {
+        "address": "45.33.32.156",
         "port": 1,
         "state": "closed",
         "error": "connection refused"
@@ -122,7 +123,9 @@ Successful response: `200 OK`
 }
 ```
 
-`duration` is a Go duration represented in nanoseconds.
+`address` identifies the validated resolved IP that was scanned. A hostname can
+resolve to multiple addresses, so the same port may appear once for each
+address. `duration` is a Go duration represented in nanoseconds.
 
 Failed jobs use the `failed` status and contain an `error` field instead of
 a result.
@@ -133,9 +136,14 @@ Errors always use a JSON object:
 
 ```json
 {
+  "code": "SCAN_NOT_FOUND",
   "error": "scan job not found"
 }
 ```
+
+The machine-readable `code` is the integration contract used by Ballerina.
+Human-readable error text remains diagnostic and must not be used for public
+error classification.
 
 The service uses these HTTP status codes:
 

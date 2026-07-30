@@ -52,10 +52,15 @@ PostgreSQL
 
 ## Current Status
 
-The Ballerina integration API has also been initialized. It provides a
-configurable HTTP listener, a typed `GET /health` endpoint, consistent public
-JSON response envelopes, and an automated health endpoint test. Public scan
-endpoints and Go scanner integration will be added during Days 6–9.
+The Go scanner engine and Ballerina integration API now provide a complete
+asynchronous scan flow. Public clients can create authorized scan jobs and
+retrieve their status and safe results through Ballerina. The integration
+includes target and port validation, downstream timeouts, safe error mapping,
+request correlation IDs, structured logging, and automated tests.
+
+The current Ballerina listener is a development/pre-auth API. Its `authorized`
+field records the caller's acknowledgement; WSO2 Identity Server and API
+Manager will provide authentication and policy enforcement in later phases.
 
 ## Security Notice
 
@@ -71,7 +76,7 @@ Unauthorized scanning is prohibited.
 * [x] Add scan safety controls
 * [x] Add internal Go scanner HTTP service
 * [x] Add asynchronous scan jobs and status retrieval
-* [ ] Build Ballerina API
+* [x] Build Ballerina API
 * [ ] Add PostgreSQL storage
 * [ ] Build Next.js frontend
 * [ ] Integrate WSO2 Identity Server

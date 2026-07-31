@@ -2,3 +2,5 @@
 listenerPort = 9091
 serviceName = "securescan-api-test"
 scannerServiceUrl = "http://localhost:18081"
+scannerConnectTimeout = 2.0
+scannerResponseTimeout = 5.0

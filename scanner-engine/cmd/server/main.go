@@ -22,8 +22,21 @@ type healthResponse struct {
 }
 
 type errorResponse struct {
+	Code  string `json:"code"`
 	Error string `json:"error"`
 }
+
+const (
+	errorCodeBlockedTarget    = "BLOCKED_TARGET"
+	errorCodeInternal         = "INTERNAL_ERROR"
+	errorCodeInvalidPort      = "INVALID_PORT_RANGE"
+	errorCodeInvalidRequest   = "INVALID_REQUEST"
+	errorCodeInvalidScanID    = "INVALID_SCAN_ID"
+	errorCodeInvalidTarget    = "INVALID_TARGET"
+	errorCodeMethodNotAllowed = "METHOD_NOT_ALLOWED"
+	errorCodeScanNotFound     = "SCAN_NOT_FOUND"
+	errorCodeUnsupportedType  = "UNSUPPORTED_MEDIA_TYPE"
+)
 
 func main() {
 	config, err := appconfig.Load()
@@ -62,6 +75,7 @@ func routesWithRunner(
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeJSON(w, http.StatusMethodNotAllowed, errorResponse{
+			Code:  errorCodeMethodNotAllowed,
 			Error: "method not allowed",
 		})
 		return
@@ -84,7 +98,17 @@ func writeJSON(w http.ResponseWriter, statusCode int, value any) {
 
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s %s", r.Method, r.URL.Path)
+		requestID := r.Header.Get("X-Request-ID")
+		if requestID == "" {
+			log.Printf("%s %s", r.Method, r.URL.Path)
+		} else {
+			log.Printf(
+				"%s %s request_id=%s",
+				r.Method,
+				r.URL.Path,
+				requestID,
+			)
+		}
 		next.ServeHTTP(w, r)
 	})
 }

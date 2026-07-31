@@ -60,6 +60,18 @@ func TestGetScanReturnsNotFound(t *testing.T) {
 			recorder.Code,
 		)
 	}
+
+	var response errorResponse
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatalf("decode not-found response: %v", err)
+	}
+	if response.Code != errorCodeScanNotFound {
+		t.Errorf(
+			"expected error code %q, got %q",
+			errorCodeScanNotFound,
+			response.Code,
+		)
+	}
 }
 
 func TestRunScanCompletesJob(t *testing.T) {

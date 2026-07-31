@@ -82,22 +82,25 @@ func scanPort(
 
 	if err != nil {
 		return models.PortResult{
-			Port:  port,
-			State: "closed",
-			Error: err.Error(),
+			Address: target,
+			Port:    port,
+			State:   "closed",
+			Error:   err.Error(),
 		}
 	}
 
 	if err := connection.Close(); err != nil {
 		return models.PortResult{
-			Port:  port,
-			State: "open",
-			Error: fmt.Sprintf("failed to close connection: %v", err),
+			Address: target,
+			Port:    port,
+			State:   "open",
+			Error:   fmt.Sprintf("failed to close connection: %v", err),
 		}
 	}
 
 	return models.PortResult{
-		Port:  port,
-		State: "open",
+		Address: target,
+		Port:    port,
+		State:   "open",
 	}
 }

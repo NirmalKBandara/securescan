@@ -1,7 +1,14 @@
 # SecureScan Ballerina Integration API
 
-The Ballerina Integration API is the public application-service layer for SecureScan. 
-It will validate public requests, orchestrate scanner jobs, communicate with the Go scanner engine, and access PostgreSQL.
+The Ballerina Integration API is the public application-service layer for
+SecureScan. It validates public requests, orchestrates scanner jobs, and
+communicates with the Go scanner engine. PostgreSQL integration will be added
+later.
+
+The service is currently a development/pre-auth API. The `authorized` request
+field is an explicit user acknowledgement, not an authentication or
+authorization control. Keep the listener private until WSO2 identity and API
+management are integrated.
 
 ## Current Status
 
@@ -11,6 +18,10 @@ It will validate public requests, orchestrate scanner jobs, communicate with the
 - An automated health endpoint test
 - Public scan creation contract: `POST /api/v1/scans`
 - Request validation for required target, port boundaries, and authorized-use confirmation
+- `GET /api/v1/scans/{scanId}`
+- Configurable scanner connection and response timeouts
+- Safe public mapping for validation, blocked, not-found, unavailable, and internal errors
+- Generated `X-Request-ID` response headers and structured application logs
 
 ## Requirements
 
@@ -24,6 +35,13 @@ Local development configuration is stored in `Config.toml`:
 ```toml
 listenerPort = 9090
 serviceName = "securescan-api"
+
+# Internal Go scanner address; never expose this in public responses.
+scannerServiceUrl = "http://localhost:8081"
+
+# Downstream timeouts in seconds.
+scannerConnectTimeout = 2.0
+scannerResponseTimeout = 5.0
 ```
 
 Primitive configuration values can also be overridden using environment
@@ -70,7 +88,7 @@ bal build
 
 Generated build artifacts are written to `target/`.
 
-## Create Scan Contract Check
+## Create a Scan
 
 ```bash
 curl --include \
@@ -78,5 +96,23 @@ curl --include \
   --header "Content-Type: application/json" \
   --data '{"target":"scanme.nmap.org","startPort":1,"endPort":100,"authorized":true}' \
   http://localhost:9090/api/v1/scans
-  ```
-  
+```
+
+## Get Scan Status
+
+Copy the `id` returned by the create request and use it here:
+
+```bash
+curl --include \
+  http://localhost:9090/api/v1/scans/945686d6-c53f-4717-9d98-51f913fc8904
+```
+
+Scan jobs progress through:
+
+```text
+accepted -> running -> completed
+                    -> failed
+```
+
+Every public scan response includes an `X-Request-ID` header. Error responses
+also include the same value in `error.requestId`.

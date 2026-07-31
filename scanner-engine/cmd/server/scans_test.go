@@ -56,6 +56,7 @@ func TestCreateScanRejectsInvalidRequests(t *testing.T) {
 		body         string
 		contentType  string
 		expectedCode int
+		errorCode    string
 		expectedText string
 	}{
 		{
@@ -63,6 +64,7 @@ func TestCreateScanRejectsInvalidRequests(t *testing.T) {
 			body:         `{"target":`,
 			contentType:  "application/json",
 			expectedCode: http.StatusBadRequest,
+			errorCode:    errorCodeInvalidRequest,
 			expectedText: "valid scan JSON",
 		},
 		{
@@ -70,6 +72,7 @@ func TestCreateScanRejectsInvalidRequests(t *testing.T) {
 			body:         `{"target":"8.8.8.8","startPort":1,"endPort":2,"extra":true}`,
 			contentType:  "application/json",
 			expectedCode: http.StatusBadRequest,
+			errorCode:    errorCodeInvalidRequest,
 			expectedText: "valid scan JSON",
 		},
 		{
@@ -77,6 +80,7 @@ func TestCreateScanRejectsInvalidRequests(t *testing.T) {
 			body:         `{"target":"8.8.8.8","startPort":100,"endPort":1}`,
 			contentType:  "application/json",
 			expectedCode: http.StatusBadRequest,
+			errorCode:    errorCodeInvalidPort,
 			expectedText: "start port cannot be greater",
 		},
 		{
@@ -84,6 +88,7 @@ func TestCreateScanRejectsInvalidRequests(t *testing.T) {
 			body:         `{"target":"127.0.0.1","startPort":1,"endPort":2}`,
 			contentType:  "application/json",
 			expectedCode: http.StatusBadRequest,
+			errorCode:    errorCodeBlockedTarget,
 			expectedText: "blocked",
 		},
 		{
@@ -91,6 +96,7 @@ func TestCreateScanRejectsInvalidRequests(t *testing.T) {
 			body:         `{"target":"8.8.8.8","startPort":1,"endPort":2}`,
 			contentType:  "text/plain",
 			expectedCode: http.StatusUnsupportedMediaType,
+			errorCode:    errorCodeUnsupportedType,
 			expectedText: "application/json",
 		},
 	}
@@ -120,6 +126,18 @@ func TestCreateScanRejectsInvalidRequests(t *testing.T) {
 					"expected response to contain %q, got %q",
 					test.expectedText,
 					recorder.Body.String(),
+				)
+			}
+
+			var response errorResponse
+			if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+				t.Fatalf("decode error response: %v", err)
+			}
+			if response.Code != test.errorCode {
+				t.Errorf(
+					"expected error code %q, got %q",
+					test.errorCode,
+					response.Code,
 				)
 			}
 		})

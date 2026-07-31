@@ -47,6 +47,7 @@ func newAPI(config appconfig.Config, runner scanRunner) *api {
 func (api *api) createScanHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, errorResponse{
+			Code:  errorCodeMethodNotAllowed,
 			Error: "method not allowed",
 		})
 		return
@@ -54,6 +55,7 @@ func (api *api) createScanHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
 		writeJSON(w, http.StatusUnsupportedMediaType, errorResponse{
+			Code:  errorCodeUnsupportedType,
 			Error: "Content-Type must be application/json",
 		})
 		return
@@ -62,6 +64,7 @@ func (api *api) createScanHandler(w http.ResponseWriter, r *http.Request) {
 	var request createScanRequest
 	if err := decodeJSONBody(w, r, &request); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{
+			Code:  errorCodeInvalidRequest,
 			Error: err.Error(),
 		})
 		return
@@ -80,7 +83,12 @@ func (api *api) createScanHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := validation.ValidateScanConfig(scanConfig); err != nil {
+		code := errorCodeInvalidPort
+		if strings.TrimSpace(scanConfig.Target) == "" {
+			code = errorCodeInvalidTarget
+		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{
+			Code:  code,
 			Error: err.Error(),
 		})
 		return
@@ -92,7 +100,12 @@ func (api *api) createScanHandler(w http.ResponseWriter, r *http.Request) {
 		scanConfig.AllowPrivateTargets,
 		scanConfig.AllowedTargets,
 	); err != nil {
+		code := errorCodeInvalidTarget
+		if validation.IsBlockedTargetError(err) {
+			code = errorCodeBlockedTarget
+		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{
+			Code:  code,
 			Error: err.Error(),
 		})
 		return
@@ -101,6 +114,7 @@ func (api *api) createScanHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := newUUID()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{
+			Code:  errorCodeInternal,
 			Error: "failed to create scan ID",
 		})
 		return

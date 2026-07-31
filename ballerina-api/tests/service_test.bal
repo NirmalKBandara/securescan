@@ -19,7 +19,7 @@ type MockScannerRequest record {|
 
 type MockAccepted record {|
     *http:Accepted;
-    ScannerCreateResponse body
+    ScannerCreateResponse body;
 |};
 
 type MockAcceptedJson record {|

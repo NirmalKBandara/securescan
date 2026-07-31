@@ -67,7 +67,7 @@ private/special-range blocking, scan limits, and TCP connections.
 
 The current Go job identifier is returned directly as the public identifier.
 Day 10 introduces a durable Ballerina-owned `scan_jobs.id` and records the Go
-identifier separately as `scanner_job_id`; the database design documents that
+identifier separately as `scanner_scan_id`; the database design documents that
 correlation and its lifecycle constraints.
 
 PostgreSQL, WSO2, and Next.js are architectural targets and are not yet in the

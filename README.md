@@ -62,6 +62,11 @@ The current Ballerina listener is a development/pre-auth API. Its `authorized`
 field records the caller's acknowledgement; WSO2 Identity Server and API
 Manager will provide authentication and policy enforcement in later phases.
 
+The Day 10 PostgreSQL design is also complete: the four required tables,
+constraints, indexes, ownership rules, status lifecycle, service-ID
+correlation, required queries, and versioned migration sequence are specified.
+Executable migrations and database wiring intentionally begin on Day 11.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -77,6 +82,7 @@ Unauthorized scanning is prohibited.
 * [x] Add internal Go scanner HTTP service
 * [x] Add asynchronous scan jobs and status retrieval
 * [x] Build Ballerina API
+* [x] Design PostgreSQL schema and migration plan
 * [ ] Add PostgreSQL storage
 * [ ] Build Next.js frontend
 * [ ] Integrate WSO2 Identity Server
@@ -89,3 +95,6 @@ A more detailed architecture draft is available in [`architecture`](docs/archite
 
 The scanner's internal API is documented in
 [`scanner-service-api`](docs/api/scanner-service-api.md).
+
+The reviewed PostgreSQL design and migration plan are documented in
+[`schema-design`](docs/database/schema-design.md).

@@ -45,6 +45,36 @@ Stores scan jobs, scan results, allowed targets, audit logs, and related metadat
 10. The frontend retrieves and displays the results.
 ```
 
+## Implemented integration checkpoint (Day 09)
+
+The repository currently implements the first service boundary in this
+architecture:
+
+```text
+Public client
+  -> Ballerina POST /api/v1/scans
+  -> Go POST /internal/scans
+  -> asynchronous in-memory Go job
+  -> Ballerina GET /api/v1/scans/{scanId}
+  -> Go GET /internal/scans/{scanId}
+```
+
+Ballerina owns the public contract, validates the acknowledgement and basic
+port boundaries, applies downstream connection/response timeouts, generates a
+request ID, and removes scanner diagnostics from public responses. The Go
+service remains responsible for DNS revalidation, allowlist enforcement,
+private/special-range blocking, scan limits, and TCP connections.
+
+The current Go job identifier is returned directly as the public identifier.
+Day 10 introduces a durable Ballerina-owned `scan_jobs.id` and records the Go
+identifier separately as `scanner_job_id`; the database design documents that
+correlation and its lifecycle constraints.
+
+PostgreSQL, WSO2, and Next.js are architectural targets and are not yet in the
+runtime request path. Until WSO2 is integrated, the Ballerina listener is a
+private development endpoint and `authorized: true` is only an explicit-use
+acknowledgement, not an authentication mechanism.
+
 ## Initial Diagram
 
 ```text
@@ -87,4 +117,6 @@ Stores scan jobs, scan results, allowed targets, audit logs, and related metadat
 
 ## Status
 
-This is the initial architecture draft. It will be refined as the project implementation progresses.
+The Ballerina-to-Go integration checkpoint is implemented and tested. The
+PostgreSQL schema is designed but persistence is intentionally scheduled for
+the next implementation phase.

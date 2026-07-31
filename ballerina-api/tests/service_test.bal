@@ -77,6 +77,33 @@ service / on new http:Listener(18081) {
             };
             return blocked;
         }
+        if request.target == "invalid-target.example" {
+            MockBadRequest invalidTarget = {
+                body: {
+                    "code": INVALID_TARGET,
+                    "error": "internal target validation diagnostic"
+                }
+            };
+            return invalidTarget;
+        }
+        if request.target == "invalid-port-range.example" {
+            MockBadRequest invalidPortRange = {
+                body: {
+                    "code": INVALID_PORT_RANGE,
+                    "error": "internal port policy diagnostic"
+                }
+            };
+            return invalidPortRange;
+        }
+        if request.target == "unknown-error.example" {
+            MockBadRequest unknownError = {
+                body: {
+                    "code": "PRIVATE_SCANNER_ERROR",
+                    "error": "internal scanner implementation detail"
+                }
+            };
+            return unknownError;
+        }
         if request.target == "unavailable.example" {
             MockUnavailable unavailable = {
                 body: {"error": "scanner unavailable"}
@@ -256,10 +283,32 @@ function testCreateScanRejectsWrongRequestShapeWithRequestId() returns error? {
 @test:Config {}
 function testCreateScanMapsDownstreamBlockedTarget() returns error? {
     http:Response response = check postScan("blocked.example", 1, 100, true);
-    test:assertEquals(response.statusCode, http:STATUS_BAD_REQUEST);
-    json payload = check response.getJsonPayload();
-    test:assertEquals(payload.'error.code, BLOCKED_TARGET);
-    test:assertFalse(payload.toJsonString().includes("blocked address"));
+    check assertSafeError(response, http:STATUS_BAD_REQUEST, BLOCKED_TARGET,
+            "blocked address");
+}
+
+@test:Config {}
+function testCreateScanMapsDownstreamInvalidTargetSafely() returns error? {
+    http:Response response =
+        check postScan("invalid-target.example", 1, 100, true);
+    check assertSafeError(response, http:STATUS_BAD_REQUEST, INVALID_TARGET,
+            "internal target validation diagnostic");
+}
+
+@test:Config {}
+function testCreateScanMapsDownstreamInvalidPortRangeSafely() returns error? {
+    http:Response response =
+        check postScan("invalid-port-range.example", 1, 100, true);
+    check assertSafeError(response, http:STATUS_BAD_REQUEST,
+            INVALID_PORT_RANGE, "internal port policy diagnostic");
+}
+
+@test:Config {}
+function testCreateScanMapsUnknownDownstreamErrorSafely() returns error? {
+    http:Response response =
+        check postScan("unknown-error.example", 1, 100, true);
+    check assertSafeError(response, http:STATUS_INTERNAL_SERVER_ERROR,
+            INTERNAL_ERROR, "internal scanner implementation detail");
 }
 
 @test:Config {}
@@ -302,46 +351,39 @@ function testGetFailedScanDoesNotLeakInternalError() returns error? {
 @test:Config {}
 function testGetUnknownValidScanId() returns error? {
     http:Response response = check apiClient->/api/v1/scans/[UNKNOWN_SCAN_ID];
-    test:assertEquals(response.statusCode, http:STATUS_NOT_FOUND);
-    json payload = check response.getJsonPayload();
-    test:assertEquals(payload.'error.code, SCAN_NOT_FOUND);
+    check assertSafeError(response, http:STATUS_NOT_FOUND, SCAN_NOT_FOUND,
+            "scan job not found");
 }
 
 @test:Config {}
 function testCreateScanMapsUnavailableScanner() returns error? {
     http:Response response = check postScan("unavailable.example", 1, 100, true);
-    test:assertEquals(response.statusCode, http:STATUS_SERVICE_UNAVAILABLE);
-    json payload = check response.getJsonPayload();
-    test:assertEquals(payload.'error.code, SCANNER_UNAVAILABLE);
+    check assertSafeError(response, http:STATUS_SERVICE_UNAVAILABLE,
+            SCANNER_UNAVAILABLE, "scanner unavailable");
 }
 
 @test:Config {}
 function testCreateScanMapsMalformedDownstreamResponse() returns error? {
     http:Response response =
         check postScan("malformed-response.example", 1, 2, true);
-    test:assertEquals(response.statusCode, http:STATUS_INTERNAL_SERVER_ERROR);
-    json payload = check response.getJsonPayload();
-    test:assertEquals(payload.'error.code, INTERNAL_ERROR);
-    test:assertFalse(payload.toJsonString().includes("not-a-complete"));
+    check assertSafeError(response, http:STATUS_INTERNAL_SERVER_ERROR,
+            INTERNAL_ERROR, "not-a-complete");
 }
 
 @test:Config {}
 function testGetMapsUnavailableScanner() returns error? {
     http:Response response =
         check apiClient->/api/v1/scans/[UNAVAILABLE_SCAN_ID];
-    test:assertEquals(response.statusCode, http:STATUS_SERVICE_UNAVAILABLE);
-    json payload = check response.getJsonPayload();
-    test:assertEquals(payload.'error.code, SCANNER_UNAVAILABLE);
+    check assertSafeError(response, http:STATUS_SERVICE_UNAVAILABLE,
+            SCANNER_UNAVAILABLE, "scanner unavailable");
 }
 
 @test:Config {}
 function testGetRejectsInvalidDownstreamStatusSafely() returns error? {
     http:Response response =
         check apiClient->/api/v1/scans/[INVALID_STATUS_SCAN_ID];
-    test:assertEquals(response.statusCode, http:STATUS_INTERNAL_SERVER_ERROR);
-    json payload = check response.getJsonPayload();
-    test:assertEquals(payload.'error.code, INTERNAL_ERROR);
-    test:assertFalse(payload.toJsonString().includes("dial tcp"));
+    check assertSafeError(response, http:STATUS_INTERNAL_SERVER_ERROR,
+            INTERNAL_ERROR, "dial tcp");
 }
 
 @test:Config {}
@@ -386,4 +428,18 @@ function postScan(string target, int startPort, int endPort, boolean authorized)
         authorized: authorized
     };
     return apiClient->/api/v1/scans.post(requestBody);
+}
+
+// All integration failures must preserve the stable public envelope and
+// correlation ID without returning the scanner's diagnostic text.
+function assertSafeError(http:Response response, int expectedStatus,
+        string expectedCode, string forbiddenText) returns error? {
+    test:assertEquals(response.statusCode, expectedStatus);
+    json payload = check response.getJsonPayload();
+    test:assertEquals(payload.success, false);
+    test:assertEquals(payload.'error.code, expectedCode);
+    string headerRequestId = check response.getHeader("X-Request-ID");
+    test:assertTrue(headerRequestId.length() > 0);
+    test:assertEquals(payload.'error.requestId, headerRequestId);
+    test:assertFalse(payload.toJsonString().includes(forbiddenText));
 }

@@ -1,6 +1,7 @@
 # SecureScan PostgreSQL Schema Design
 
-Status: Day 10 design; no database migration has been created or applied.
+Status: Day 11 implementation; the core schema and index migrations are now
+executable, with local Compose, development seed, and verification tooling.
 
 ## Design goals
 
@@ -127,7 +128,9 @@ CREATE TABLE allowed_targets (
     ),
     CONSTRAINT allowed_targets_ports_ck CHECK (
         (start_port IS NULL AND end_port IS NULL)
-        OR (start_port BETWEEN 1 AND 65535
+        OR (start_port IS NOT NULL
+            AND end_port IS NOT NULL
+            AND start_port BETWEEN 1 AND 65535
             AND end_port BETWEEN 1 AND 65535
             AND start_port <= end_port)
     ),
@@ -193,7 +196,8 @@ CREATE TABLE scan_jobs (
         AND (finished_at IS NULL OR finished_at >= created_at)
         AND (finished_at IS NULL OR started_at IS NULL
              OR finished_at >= started_at)
-        AND (status = 'QUEUED'
+        AND (status = 'QUEUED' AND started_at IS NULL
+                                 AND finished_at IS NULL
              OR status = 'RUNNING' AND started_at IS NOT NULL
                                  AND finished_at IS NULL
              OR status = 'COMPLETED' AND started_at IS NOT NULL
@@ -636,31 +640,31 @@ the schema constraints and unique indexes reject malformed or duplicate rules.
   `SELECT`, but no `UPDATE` or `DELETE`. PostgreSQL/backups must use encrypted
   storage, TLS, restricted retention, and redacted database logs.
 
-## Versioned migration plan (future Day 11+ work)
+## Versioned migrations
 
-No files from this sequence are created on Day 10. Each future version has a
-paired down migration, a preflight, and a post-deploy verification query.
-Production index builds use `CREATE INDEX CONCURRENTLY` outside a transaction;
-their downs use `DROP INDEX CONCURRENTLY`.
+Each implemented version has a paired down migration and is tracked in the
+`schema_migrations` ledger. The local runner applies each version atomically.
+Production index builds should use `CREATE INDEX CONCURRENTLY` outside a
+transaction; their downs should use `DROP INDEX CONCURRENTLY`.
 
-1. `V001__create_core_tables`: create `allowed_targets`, `scan_jobs`,
+1. `V001__create_core_tables` (implemented): creates `allowed_targets`, `scan_jobs`,
    `scan_results`, and `audit_logs` with checks, primary keys, unique Go ID,
    foreign keys, and timestamp defaults. Down order is audit logs, results,
    jobs, then allowed targets. Do not use PostgreSQL enums: named text checks
    make future status additions deployable without enum transaction hazards.
-2. `V002__create_core_indexes`: create the partial unique allowlist indexes,
+2. `V002__create_core_indexes` (implemented): creates the partial unique allowlist indexes,
    foreign-key indexes, user-history/queue/result indexes, GiST CIDR index, and
-   audit investigation indexes concurrently. Drop only these named indexes in
-   the down migration.
-3. `V003__database_roles_and_grants`: create/attach least-privilege grants for
+   audit investigation indexes inside the local runner's transaction. A
+   production deployment should adapt these to concurrent builds. The down
+   migration drops only these named indexes.
+3. `V003__database_roles_and_grants` (future deployment work): create/attach least-privilege grants for
    migration owner, Ballerina runtime, audit writer, and admin reader. Keep role
    secrets in the deployment secret manager, never SQL files. Down revokes
    grants; shared production roles are not dropped automatically.
-4. `V004__seed_allowed_targets`: insert only reviewed development/test targets
-   using deterministic IDs and no credentials. The production seed is a
-   separately approved data migration. Down removes only those deterministic
-   IDs after checking that no job references them.
-5. `V005__optional_row_level_security`: after pooled-connection integration
+4. Development targets are kept in `database/seeds/development.sql`, separate
+   from production migrations. They use deterministic IDs and no credentials;
+   production allowlist data requires a separately approved data migration.
+5. `V004__optional_row_level_security`: after pooled-connection integration
    tests prove transaction-local subject propagation, enable RLS and add
    user/admin policies. Down removes policies and disables RLS; deploy the
    application ownership predicates before enabling this migration.

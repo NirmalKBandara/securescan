@@ -231,6 +231,43 @@ function testHealthEndpoint() returns error? {
 }
 
 @test:Config {}
+function testPersistedCompletedScanUsesPublicIdAndStoredResults() {
+    PersistedScanJob job = {
+        id: "00000000-0000-4000-8000-000000000012",
+        scannerScanId: COMPLETED_SCAN_ID,
+        target: "scanme.nmap.org",
+        startPort: 1,
+        endPort: 2,
+        status: "COMPLETED",
+        durationNanos: 1500000,
+        createdAt: "2026-08-03T00:00:00Z",
+        updatedAt: "2026-08-03T00:00:01Z"
+    };
+    ScanStatusOk response = persistedScanResponse(job,
+            [{address: "45.33.32.156", port: 2, state: "open"}], "request-id");
+    test:assertEquals(response.body.data.id, job.id);
+    test:assertEquals(response.body.data.status, "completed");
+    test:assertEquals(response.body.data.result.durationNanos, 1500000);
+}
+
+@test:Config {}
+function testPersistedRunningScanDoesNotExposeResult() {
+    PersistedScanJob job = {
+        id: "00000000-0000-4000-8000-000000000013",
+        scannerScanId: RUNNING_SCAN_ID,
+        target: "scanme.nmap.org",
+        startPort: 1,
+        endPort: 2,
+        status: "RUNNING",
+        createdAt: "2026-08-03T00:00:00Z",
+        updatedAt: "2026-08-03T00:00:01Z"
+    };
+    ScanStatusOk response = persistedScanResponse(job, [], "request-id");
+    test:assertEquals(response.body.data.status, "running");
+    test:assertEquals(response.body.data.result, ());
+}
+
+@test:Config {}
 function testCreateScanAcceptsValidRequest() returns error? {
     http:Response response = check postScan("scanme.nmap.org", 1, 100, true);
     test:assertEquals(response.statusCode, http:STATUS_ACCEPTED);

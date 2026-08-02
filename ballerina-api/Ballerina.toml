@@ -7,3 +7,18 @@ distribution = "2201.13.4"
 [build-options]
 # Later connect this to metrics and tracing.
 observabilityIncluded = true
+
+[[dependency]]
+org = "ballerinax"
+name = "postgresql"
+version = "1.16.4"
+
+[[dependency]]
+org = "ballerinax"
+name = "postgresql.driver"
+version = "1.6.3"
+
+[[dependency]]
+org = "ballerinax"
+name = "cdc"
+version = "1.2.0"

@@ -1,8 +1,9 @@
 # Ballerina Public API
 
 The Ballerina Integration API is the public API boundary for SecureScan. It
-validates client requests, calls the internal Go scanner, and returns stable
-public response envelopes without exposing internal service details.
+validates client requests, persists the public scan lifecycle in PostgreSQL,
+calls the internal Go scanner, and returns stable public response envelopes
+without exposing internal service details.
 
 This is currently a development/pre-auth API. The request's `authorized` field
 is an explicit acknowledgement, not an authentication or authorization
@@ -46,12 +47,14 @@ Status: `202 Accepted`
 }
 ```
 
-The returned `id` is used to retrieve the job through the status endpoint.
+The returned `id` is generated and owned by Ballerina. The internal Go scanner
+ID is stored separately and is never exposed as the public identifier.
 
 ## GET /api/v1/scans/{scanId}
 
-Validates the supplied UUID and returns the current state of the corresponding
-Go scanner job.
+Validates the supplied UUID, loads the corresponding PostgreSQL job, refreshes
+non-terminal state from the correlated Go scanner job, and returns the durable
+public state and results.
 
 Jobs follow this lifecycle:
 
@@ -131,4 +134,5 @@ never returned to public clients.
 | `BLOCKED_TARGET` | 400 | Target is not permitted |
 | `SCAN_NOT_FOUND` | 404 | No job exists for the supplied UUID |
 | `SCANNER_UNAVAILABLE` | 503 | Internal scanner is unreachable or timed out |
+| `PERSISTENCE_UNAVAILABLE` | 503 | PostgreSQL cannot serve the scan operation |
 | `INTERNAL_ERROR` | 500 | Unexpected internal or downstream response |

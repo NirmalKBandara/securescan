@@ -12,6 +12,7 @@ public const string INVALID_REQUEST = "INVALID_REQUEST";
 public const string BLOCKED_TARGET = "BLOCKED_TARGET";
 public const string SCAN_NOT_FOUND = "SCAN_NOT_FOUND";
 public const string SCANNER_UNAVAILABLE = "SCANNER_UNAVAILABLE";
+public const string PERSISTENCE_UNAVAILABLE = "PERSISTENCE_UNAVAILABLE";
 public const string INTERNAL_ERROR = "INTERNAL_ERROR";
 
 public type ApiError record {|

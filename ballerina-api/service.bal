@@ -37,16 +37,44 @@ service / on new http:Listener(listenerPort) {
             return validationError;
         }
 
+        string publicScanId = uuid:createType4AsString();
+        if persistenceEnabled {
+            error? insertError = insertQueuedScan(publicScanId, request);
+            if insertError is error {
+                log:printError("Unable to persist queued scan", insertError,
+                        requestId = requestId, scanId = publicScanId);
+                return persistenceUnavailable(requestId);
+            }
+        }
+
         ScannerCreateResponse|ScannerFailure scannerResult =
             createScannerJob(request, requestId);
         if scannerResult is ScannerFailure {
+            if persistenceEnabled {
+                error? updateError = markScanDispatchFailed(publicScanId,
+                        scannerResult.code, scannerResult.code == BLOCKED_TARGET);
+                if updateError is error {
+                    log:printError("Unable to persist scan dispatch failure",
+                            updateError, requestId = requestId,
+                            scanId = publicScanId);
+                }
+            }
             log:printWarn("Scanner create request failed",
                     requestId = requestId, failureCode = scannerResult.code);
             return mapCreateFailure(scannerResult, requestId);
         }
 
+        if persistenceEnabled {
+            error? updateError = markScanDispatched(publicScanId, scannerResult.id);
+            if updateError is error {
+                log:printError("Unable to persist scanner correlation", updateError,
+                        requestId = requestId, scanId = publicScanId);
+                return persistenceUnavailable(requestId);
+            }
+        }
+
         CreateScanData scanData = {
-            id: scannerResult.id,
+            id: persistenceEnabled ? publicScanId : scannerResult.id,
             status: scannerResult.status,
             target: scannerResult.target,
             startPort: scannerResult.startPort,
@@ -70,6 +98,10 @@ service / on new http:Listener(listenerPort) {
         if !uuid:validate(scanId) {
             return badRequest(INVALID_SCAN_ID, "Scan ID must be a valid UUID",
                     {"field": "scanId"}, requestId);
+        }
+
+        if persistenceEnabled {
+            return getPersistedScanStatus(scanId, requestId);
         }
 
         ScannerStatusResponse|ScannerFailure scannerResult =
@@ -116,6 +148,143 @@ service / on new http:Listener(listenerPort) {
             body: {success: true, data: statusData}
         };
     }
+}
+
+function getPersistedScanStatus(string scanId, string requestId)
+        returns ScanStatusOk|NotFoundError|ServiceUnavailableError|
+        InternalServerErrorResponse {
+    PersistedScanJob|error? loaded = loadScanJob(scanId);
+    if loaded is error {
+        log:printError("Unable to load persisted scan", loaded,
+                requestId = requestId, scanId = scanId);
+        return persistenceUnavailable(requestId);
+    }
+    if loaded is () {
+        return scanNotFound(requestId);
+    }
+    PersistedScanJob job = loaded;
+
+    if job.status == "QUEUED" || job.status == "RUNNING" {
+        string? scannerId = job.scannerScanId;
+        if scannerId is string {
+            ScannerStatusResponse|ScannerFailure scannerResult =
+                getScannerJob(scannerId, requestId);
+            if scannerResult is ScannerFailure {
+                if scannerResult.code == SCANNER_UNAVAILABLE {
+                    ServiceUnavailableError unavailable = {
+                        headers: {requestId: requestId},
+                        body: {
+                            success: false,
+                            'error: {
+                                code: SCANNER_UNAVAILABLE,
+                                message: "Scanner service is temporarily unavailable",
+                                requestId: requestId
+                            }
+                        }
+                    };
+                    return unavailable;
+                }
+                return internalServerError(requestId);
+            }
+            error? syncError = synchronizeScanJob(job, scannerResult);
+            if syncError is error {
+                log:printError("Unable to synchronize persisted scan", syncError,
+                        requestId = requestId, scanId = scanId);
+                return persistenceUnavailable(requestId);
+            }
+            PersistedScanJob|error? refreshed = loadScanJob(scanId);
+            if refreshed is error || refreshed is () {
+                return persistenceUnavailable(requestId);
+            }
+            job = refreshed;
+        }
+    }
+
+    ScanPortResult[] ports = [];
+    if job.status == "COMPLETED" {
+        PersistedScanResult[]|error storedResults = loadScanResults(scanId);
+        if storedResults is error {
+            log:printError("Unable to load persisted scan results", storedResults,
+                    requestId = requestId, scanId = scanId);
+            return persistenceUnavailable(requestId);
+        }
+        ports = from PersistedScanResult port in storedResults
+            select {
+                address: port.address,
+                port: port.port,
+                state: <ScanPortState>port.state
+            };
+    }
+    return persistedScanResponse(job, ports, requestId);
+}
+
+function persistedScanResponse(PersistedScanJob job, ScanPortResult[] ports,
+        string requestId) returns ScanStatusOk {
+    ScanJobStatus publicStatus = job.status == "COMPLETED" ? "completed" :
+            job.status == "FAILED" || job.status == "BLOCKED" ? "failed" : "running";
+    ScanResultData? result = ();
+    if job.status == "COMPLETED" {
+        result = {
+            target: job.target,
+            startPort: job.startPort,
+            endPort: job.endPort,
+            results: ports,
+            durationNanos: <int>job.durationNanos
+        };
+    }
+    ScanStatusData data = {
+        id: job.id,
+        status: publicStatus,
+        target: job.target,
+        startPort: job.startPort,
+        endPort: job.endPort,
+        createdAt: job.createdAt,
+        updatedAt: job.updatedAt,
+        result: result
+    };
+    return {headers: {requestId: requestId}, body: {success: true, data: data}};
+}
+
+function scanNotFound(string requestId) returns NotFoundError {
+    return {
+        headers: {requestId: requestId},
+        body: {
+            success: false,
+            'error: {
+                code: SCAN_NOT_FOUND,
+                message: "Scan not found",
+                requestId: requestId
+            }
+        }
+    };
+}
+
+function persistenceUnavailable(string requestId) returns ServiceUnavailableError {
+    return {
+        headers: {requestId: requestId},
+        body: {
+            success: false,
+            'error: {
+                code: PERSISTENCE_UNAVAILABLE,
+                message: "Scan persistence is temporarily unavailable",
+                requestId: requestId
+            }
+        }
+    };
+}
+
+function internalServerError(string requestId) returns InternalServerErrorResponse {
+    return {
+        headers: {requestId: requestId},
+        body: {
+            success: false,
+            'error: {
+                code: INTERNAL_ERROR,
+                message: "Unable to process the scan request",
+                requestId: requestId
+            }
+        }
+    };
 }
 
 function validateCreateScanRequest(CreateScanRequest request, string requestId)

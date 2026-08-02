@@ -1,7 +1,7 @@
 # SecureScan PostgreSQL Schema Design
 
-Status: Day 11 implementation; the core schema and index migrations are now
-executable, with local Compose, development seed, and verification tooling.
+Status: Day 12 implementation; the Day 11 schema/index foundation is executable,
+and Ballerina now persists scan job correlations, lifecycle, and results.
 
 ## Design goals
 
@@ -84,10 +84,10 @@ erDiagram
 can resolve to several addresses and the same port must be retained for each
 one. No standalone result ID is needed.
 
-## Proposed logical DDL
+## Implemented logical DDL
 
-This is the reviewed target schema for a later migration. It is documentation,
-not an executable Day 11 migration.
+This documents the schema implemented by the Day 11 V001 and V002 migrations
+and consumed by the Day 12 Ballerina persistence layer.
 
 ```sql
 CREATE TABLE allowed_targets (
@@ -271,13 +271,13 @@ CREATE TABLE audit_logs (
 
 The application must update `updated_at` explicitly in the same statement as
 each mutation. A later migration may add a small `BEFORE UPDATE` trigger if
-all writers cannot reliably do this; there is no hidden trigger in the Day 10
+all writers cannot reliably do this; there is no hidden trigger in the Day 11
 design.
 
 ### Indexes
 
 Primary and unique constraints already index every public ID and the complete
-result key. The later index migration should add:
+result key. The V002 index migration adds:
 
 ```sql
 -- User history and status polling.
@@ -524,8 +524,8 @@ FOR UPDATE SKIP LOCKED
 LIMIT $1;
 ```
 
-This selection and a lease/dispatch strategy must be finalized with the worker
-transaction boundaries on Day 11; no network call should hold a database lock.
+This selection and a lease/dispatch strategy remains future worker work; no
+network call should hold a database lock.
 
 Administrators can list/filter all scans using `status`, `owner_subject`, and a
 time range, ordered by `(created_at DESC, id DESC)`. Exact job lookup uses the

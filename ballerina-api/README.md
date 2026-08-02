@@ -2,8 +2,8 @@
 
 The Ballerina Integration API is the public application-service layer for
 SecureScan. It validates public requests, orchestrates scanner jobs, and
-communicates with the Go scanner engine. PostgreSQL integration will be added
-later.
+communicates with the Go scanner engine, and persists scan lifecycle and results
+in PostgreSQL.
 
 The service is currently a development/pre-auth API. The `authorized` request
 field is an explicit user acknowledgement, not an authentication or
@@ -22,6 +22,9 @@ management are integrated.
 - Configurable scanner connection and response timeouts
 - Safe public mapping for validation, blocked, not-found, unavailable, and internal errors
 - Generated `X-Request-ID` response headers and structured application logs
+- Ballerina-owned durable public scan IDs with separate Go scanner correlation
+- PostgreSQL-backed lifecycle and result retrieval
+- Idempotent result synchronization before a job becomes terminal
 
 ## Requirements
 
@@ -30,7 +33,8 @@ management are integrated.
 
 ## Configuration
 
-Local development configuration is stored in `Config.toml`:
+Copy `Config.example.toml` to the ignored `Config.toml` and adjust it for the
+local environment:
 
 ```toml
 listenerPort = 9090
@@ -42,6 +46,14 @@ scannerServiceUrl = "http://localhost:8081"
 # Downstream timeouts in seconds.
 scannerConnectTimeout = 2.0
 scannerResponseTimeout = 5.0
+
+persistenceEnabled = true
+databaseHost = "localhost"
+databasePort = 5432
+databaseName = "securescan_dev"
+databaseUser = "securescan"
+databasePassword = "securescan_dev_only"
+developmentOwnerSubject = "development-user"
 ```
 
 Primitive configuration values can also be overridden using environment
@@ -53,11 +65,13 @@ BAL_CONFIG_VAR_SERVICENAME=securescan-api-local \
 bal run
 ```
 
-*Do not commit passwords, tokens, or other credentials to `Config.toml`.*
+`developmentOwnerSubject` is temporary until WSO2 supplies an authenticated
+subject. Do not commit passwords, tokens, or other credentials to `Config.toml`.
 
 ## Run
 
-From the `ballerina-api` directory: `bal run`
+Start and migrate PostgreSQL first using the commands in `database/README.md`.
+Then, from the `ballerina-api` directory: `bal run`
 The service starts on: http://localhost:9090
 
 ## Health Check
@@ -106,6 +120,9 @@ Copy the `id` returned by the create request and use it here:
 curl --include \
   http://localhost:9090/api/v1/scans/945686d6-c53f-4717-9d98-51f913fc8904
 ```
+
+This ID is owned by Ballerina and remains stable independently of the internal
+Go scanner ID.
 
 Scan jobs progress through:
 

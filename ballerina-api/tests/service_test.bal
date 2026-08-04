@@ -1,4 +1,5 @@
 import ballerina/http;
+import ballerina/sql;
 import ballerina/test;
 
 final http:Client apiClient = check new ("http://localhost:9091");
@@ -265,6 +266,29 @@ function testPersistedRunningScanDoesNotExposeResult() {
     ScanStatusOk response = persistedScanResponse(job, [], "request-id");
     test:assertEquals(response.body.data.status, "running");
     test:assertEquals(response.body.data.result, ());
+}
+
+@test:Config {}
+function testLifecycleUpdateOutcomesExposeUnchangedRows() {
+    sql:ExecutionResult applied = {
+        affectedRowCount: 1,
+        lastInsertId: ()
+    };
+    sql:ExecutionResult unchanged = {
+        affectedRowCount: 0,
+        lastInsertId: ()
+    };
+    test:assertEquals(scanUpdateOutcome(applied), "APPLIED");
+    test:assertEquals(scanUpdateOutcome(unchanged), "UNCHANGED");
+    test:assertTrue(requireAppliedUpdate(unchanged, "stale update") is error);
+}
+
+@test:Config {}
+function testHistoryPageSizeIsBounded() {
+    test:assertEquals(validateHistoryLimit(1), ());
+    test:assertEquals(validateHistoryLimit(100), ());
+    test:assertTrue(validateHistoryLimit(0) is error);
+    test:assertTrue(validateHistoryLimit(101) is error);
 }
 
 @test:Config {}

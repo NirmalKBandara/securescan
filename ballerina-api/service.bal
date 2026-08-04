@@ -51,7 +51,7 @@ service / on new http:Listener(listenerPort) {
             createScannerJob(request, requestId);
         if scannerResult is ScannerFailure {
             if persistenceEnabled {
-                error? updateError = markScanDispatchFailed(publicScanId,
+                ScanUpdateOutcome|error updateError = markScanDispatchFailed(publicScanId,
                         scannerResult.code, scannerResult.code == BLOCKED_TARGET);
                 if updateError is error {
                     log:printError("Unable to persist scan dispatch failure",
@@ -65,9 +65,15 @@ service / on new http:Listener(listenerPort) {
         }
 
         if persistenceEnabled {
-            error? updateError = markScanDispatched(publicScanId, scannerResult.id);
+            ScanUpdateOutcome|error updateError =
+                markScanDispatched(publicScanId, scannerResult.id);
             if updateError is error {
                 log:printError("Unable to persist scanner correlation", updateError,
+                        requestId = requestId, scanId = publicScanId);
+                return persistenceUnavailable(requestId);
+            }
+            if updateError == "UNCHANGED" {
+                log:printError("Queued scan was not available for dispatch update",
                         requestId = requestId, scanId = publicScanId);
                 return persistenceUnavailable(requestId);
             }
@@ -153,7 +159,8 @@ service / on new http:Listener(listenerPort) {
 function getPersistedScanStatus(string scanId, string requestId)
         returns ScanStatusOk|NotFoundError|ServiceUnavailableError|
         InternalServerErrorResponse {
-    PersistedScanJob|error? loaded = loadScanJob(scanId);
+    PersistedScanJob|error? loaded =
+        loadScanJob(scanId, developmentOwnerSubject);
     if loaded is error {
         log:printError("Unable to load persisted scan", loaded,
                 requestId = requestId, scanId = scanId);
@@ -192,7 +199,8 @@ function getPersistedScanStatus(string scanId, string requestId)
                         requestId = requestId, scanId = scanId);
                 return persistenceUnavailable(requestId);
             }
-            PersistedScanJob|error? refreshed = loadScanJob(scanId);
+            PersistedScanJob|error? refreshed =
+                loadScanJob(scanId, developmentOwnerSubject);
             if refreshed is error || refreshed is () {
                 return persistenceUnavailable(requestId);
             }
@@ -202,7 +210,8 @@ function getPersistedScanStatus(string scanId, string requestId)
 
     ScanPortResult[] ports = [];
     if job.status == "COMPLETED" {
-        PersistedScanResult[]|error storedResults = loadScanResults(scanId);
+        PersistedScanResult[]|error storedResults =
+            loadScanResults(scanId, developmentOwnerSubject);
         if storedResults is error {
             log:printError("Unable to load persisted scan results", storedResults,
                     requestId = requestId, scanId = scanId);

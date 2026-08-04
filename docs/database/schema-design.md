@@ -1,7 +1,8 @@
 # SecureScan PostgreSQL Schema Design
 
-Status: Day 12 implementation; the Day 11 schema/index foundation is executable,
-and Ballerina now persists scan job correlations, lifecycle, and results.
+Status: Day 13 implementation; the Day 11 schema/index foundation is executable,
+and Ballerina now persists scan lifecycle and results transactionally with
+owner-scoped, deterministic reads.
 
 ## Design goals
 
@@ -87,7 +88,7 @@ one. No standalone result ID is needed.
 ## Implemented logical DDL
 
 This documents the schema implemented by the Day 11 V001 and V002 migrations
-and consumed by the Day 12 Ballerina persistence layer.
+and consumed by the Day 12/13 Ballerina persistence layer.
 
 ```sql
 CREATE TABLE allowed_targets (
@@ -364,10 +365,13 @@ SET status = 'RUNNING', scanner_scan_id = $2, started_at = $3, updated_at = $3
 WHERE id = $1 AND status = 'QUEUED';
 ```
 
-Zero updated rows means another worker won or the transition is illegal. A
-completion transaction inserts all `scan_results` and then conditionally
-updates the job to `COMPLETED`; both commit or neither does. This transaction
-is the cross-table guarantee that a completed job has its complete result set.
+Zero updated rows means another worker won or the transition is illegal. The
+Day 13 adapter exposes that outcome to callers. For completion it locks the
+active job row, batch-inserts all `scan_results`, conditionally updates the job
+to `COMPLETED`, and explicitly commits. Any error rolls the transaction back.
+Once the first completion commits, a retry cannot lock the now-terminal job and
+therefore cannot append or replace observations. This is the cross-table
+guarantee that a completed job has its complete result set.
 
 The current Go/Ballerina API uses lowercase `accepted`, `running`, `completed`,
 and `failed`. The persistence adapter maps `accepted -> QUEUED` and uppercases

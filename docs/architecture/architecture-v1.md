@@ -45,7 +45,7 @@ Stores scan jobs, scan results, allowed targets, audit logs, and related metadat
 10. The frontend retrieves and displays the results.
 ```
 
-## Implemented persistence checkpoint (Day 12)
+## Implemented persistence checkpoint (Day 13)
 
 The repository currently implements the first service boundary in this
 architecture:
@@ -68,6 +68,11 @@ private/special-range blocking, scan limits, and TCP connections.
 The Ballerina-owned `scan_jobs.id` is the public identifier. The Go identifier
 is stored separately as `scanner_scan_id`; status polling uses that private
 correlation and persists lifecycle changes and terminal port observations.
+Completion takes a row lock and commits the complete observation batch with the
+terminal job update in one PostgreSQL transaction. Duplicate completion attempts
+become no-ops after the first commit. Owner-scoped detail/result queries and
+keyset scan-history queries use stable database ordering; exposing the history
+query as a public collection resource remains Day 14 work.
 
 WSO2 and Next.js are architectural targets and are not yet in the runtime
 request path. PostgreSQL is now the durable scan system of record. Until WSO2 is integrated, the Ballerina listener is a

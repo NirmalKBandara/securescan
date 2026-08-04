@@ -62,11 +62,12 @@ The current Ballerina listener is a development/pre-auth API. Its `authorized`
 field records the caller's acknowledgement; WSO2 Identity Server and API
 Manager will provide authentication and policy enforcement in later phases.
 
-The Day 12 persistence integration is complete. Ballerina now creates durable
-public scan IDs, stores the internal Go scanner correlation separately, records
-job lifecycle changes and terminal results in PostgreSQL, and serves status by
-public ID. The Day 11 migration, local Compose service, fixtures, and schema
-verification remain the database foundation.
+The Day 13 persistence lifecycle is complete. Ballerina now stores a completed
+result set and its terminal job transition in one transaction, serializes
+completion retries with a row lock, and prevents terminal retries from changing
+stored observations. Owner-scoped detail, result, and cursor-based history
+queries use deterministic ordering. The Day 11 migrations and Day 12 database
+client remain the foundation for this layer.
 
 ## Security Notice
 
@@ -86,6 +87,7 @@ Unauthorized scanning is prohibited.
 * [x] Design PostgreSQL schema and migration plan
 * [x] Add PostgreSQL schema and local migrations
 * [x] Persist Ballerina scan jobs and results in PostgreSQL
+* [x] Make result completion transactional and add scan history queries
 * [ ] Build Next.js frontend
 * [ ] Integrate WSO2 Identity Server
 * [ ] Integrate WSO2 API Manager

@@ -24,7 +24,8 @@ management are integrated.
 - Generated `X-Request-ID` response headers and structured application logs
 - Ballerina-owned durable public scan IDs with separate Go scanner correlation
 - PostgreSQL-backed lifecycle and result retrieval
-- Idempotent result synchronization before a job becomes terminal
+- Transactional, retry-safe result synchronization before a job becomes terminal
+- Owner-scoped detail/result reads and bounded keyset history queries
 
 ## Requirements
 
@@ -123,6 +124,19 @@ curl --include \
 
 This ID is owned by Ballerina and remains stable independently of the internal
 Go scanner ID.
+
+## Persistence Guarantees
+
+Lifecycle writes are conditional on the current database status and report
+whether a row was changed. Completion locks the active job, batch-inserts every
+address/port observation, and marks the job `COMPLETED` in one transaction. A
+database error rolls the complete operation back; a duplicate completion sees
+the terminal row and performs no writes.
+
+Detail and result reads include the owner subject. Results are ordered by
+`address, port`. The repository also provides bounded first-page and keyset
+history queries ordered by `created_at DESC, id DESC`; the public collection
+resource that exposes this query is scheduled for Day 14.
 
 Scan jobs progress through:
 

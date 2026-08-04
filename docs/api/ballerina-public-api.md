@@ -103,7 +103,14 @@ Status: `200 OK`
 Each result includes the resolved address that was scanned. This distinguishes
 results when a hostname resolves to multiple IP addresses. Internal scanner and
 per-port diagnostic strings are deliberately omitted from the public response.
-An accepted, running, or failed job may not contain a `result`.
+An accepted, running, or failed job may not contain a `result`. Persisted detail
+and result reads are owner-scoped, and result rows are always returned in
+`address, port` order. Until WSO2 integration, that owner is the configured
+development subject.
+
+The persistence repository implements bounded scan-history reads ordered by
+`created_at DESC, id DESC`, including a matching keyset cursor query. The public
+`GET /api/v1/scans` collection resource is part of the Day 14 API checkpoint.
 
 ## Error response
 

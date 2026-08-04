@@ -63,8 +63,9 @@ docker compose -f deployment/compose.yaml down --volumes
 - `seeds/development.sql` contains deterministic local fixtures, not production
   data. It is safe to run repeatedly.
 - `tests/verify.sql` checks tables, named constraints and foreign keys, planned
-  indexes, migration state, seed rows, and proves that a port-zero scan is
-  rejected by a check constraint.
+  indexes, migration state, and seed rows. Its rollback-only acceptance fixtures
+  prove result-batch atomicity, completion retry safety, owner scoping, stable
+  result/history ordering, and rejection of a port-zero scan.
 
 Do not put `BEGIN` or `COMMIT` in a migration file; the runner supplies the
 transaction. Production index migrations should use a deployment runner that

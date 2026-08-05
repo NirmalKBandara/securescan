@@ -26,6 +26,10 @@ management are integrated.
 - PostgreSQL-backed lifecycle and result retrieval
 - Transactional, retry-safe result synchronization before a job becomes terminal
 - Owner-scoped detail/result reads and bounded keyset history queries
+- Durable `QUEUED` responses before the Go scanner is contacted
+- Background scanner submission with polling-driven recovery after outages/restarts
+- Owner-level active-job admission limits
+- `GET /api/v1/scans` history with bounded keyset pagination
 
 ## Requirements
 
@@ -55,6 +59,8 @@ databaseName = "securescan_dev"
 databaseUser = "securescan"
 databasePassword = "securescan_dev_only"
 developmentOwnerSubject = "development-user"
+maxActiveScansPerOwner = 5
+dispatchLeaseSeconds = 15
 ```
 
 Primitive configuration values can also be overridden using environment
@@ -125,6 +131,44 @@ curl --include \
 This ID is owned by Ballerina and remains stable independently of the internal
 Go scanner ID.
 
+Creation returns `202 Accepted` with `status: "queued"` immediately after the
+job commits to PostgreSQL. Go submission continues asynchronously. Polling the
+detail endpoint synchronizes running/completed results and retries a queued job
+that could not be submitted while the scanner was unavailable. A durable,
+expiring database lease prevents the background worker and concurrent polls
+from submitting the same queued row simultaneously. Validation or
+policy failures from Go become durable `FAILED`/`BLOCKED` jobs; transient
+scanner unavailability leaves the job queued for recovery. A running scanner
+job that permanently disappears becomes `FAILED`.
+
+At most `maxActiveScansPerOwner` `QUEUED`/`RUNNING` jobs may exist for one
+owner. Admission is serialized in PostgreSQL, and excess requests return `429`
+with `JOB_LIMIT_REACHED` without creating a row.
+
+`dispatchLeaseSeconds` must remain longer than `scannerResponseTimeout`. If an
+API process stops while holding a lease, a later poll can recover the queued
+row after expiry. Scanner submission is an external side effect, so a process
+failure after Go accepts a job but before its ID is saved still has an
+at-least-once recovery boundary. Closing that crash window requires a future
+idempotency key in the Go API.
+
+## Scan History
+
+```bash
+curl --include \
+  'http://localhost:9090/api/v1/scans?pageSize=20'
+```
+
+History is ordered by `created_at DESC, id DESC`. For the next keyset page,
+send both values from the final item:
+
+```text
+?pageSize=20&cursorCreatedAt=<createdAt>&cursorId=<id>
+```
+
+`pageSize` must be between 1 and 100. Until WSO2 integration, all rows are
+scoped to `developmentOwnerSubject`.
+
 ## Persistence Guarantees
 
 Lifecycle writes are conditional on the current database status and report
@@ -134,15 +178,15 @@ database error rolls the complete operation back; a duplicate completion sees
 the terminal row and performs no writes.
 
 Detail and result reads include the owner subject. Results are ordered by
-`address, port`. The repository also provides bounded first-page and keyset
-history queries ordered by `created_at DESC, id DESC`; the public collection
-resource that exposes this query is scheduled for Day 14.
+`address, port`. The repository and public collection resource provide bounded
+first-page and keyset history queries ordered by `created_at DESC, id DESC`.
 
 Scan jobs progress through:
 
 ```text
-accepted -> running -> completed
-                    -> failed
+queued -> running -> completed
+       -> blocked
+       -> failed
 ```
 
 Every public scan response includes an `X-Request-ID` header. Error responses

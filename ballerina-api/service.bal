@@ -13,7 +13,7 @@ service / on new http:Listener(listenerPort) {
 
     resource function post api/v1/scans(http:Request httpRequest)
             returns CreateScanAccepted|BadRequestError|ServiceUnavailableError|
-            InternalServerErrorResponse {
+            TooManyRequestsError|InternalServerErrorResponse {
         string requestId = uuid:createType4AsString();
         log:printInfo("Scan create request received",
                 requestId = requestId, operation = "createScan");
@@ -39,48 +39,43 @@ service / on new http:Listener(listenerPort) {
 
         string publicScanId = uuid:createType4AsString();
         if persistenceEnabled {
-            error? insertError = insertQueuedScan(publicScanId, request);
+            QueuedScanInsertOutcome|error insertError =
+                insertQueuedScan(publicScanId, request);
             if insertError is error {
                 log:printError("Unable to persist queued scan", insertError,
                         requestId = requestId, scanId = publicScanId);
                 return persistenceUnavailable(requestId);
             }
+            if insertError == "LIMIT_REACHED" {
+                return jobLimitReached(requestId);
+            }
+            // The durable public job exists before any Go call. Dispatch runs
+            // independently, so scanner latency cannot delay this response.
+            _ = start dispatchQueuedScanInBackground(publicScanId, request,
+                    requestId);
+            CreateScanData queuedData = {
+                id: publicScanId,
+                status: "queued",
+                target: request.target.trim(),
+                startPort: request.startPort,
+                endPort: request.endPort
+            };
+            return {
+                headers: {requestId: requestId},
+                body: {success: true, data: queuedData}
+            };
         }
 
         ScannerCreateResponse|ScannerFailure scannerResult =
             createScannerJob(request, requestId);
         if scannerResult is ScannerFailure {
-            if persistenceEnabled {
-                ScanUpdateOutcome|error updateError = markScanDispatchFailed(publicScanId,
-                        scannerResult.code, scannerResult.code == BLOCKED_TARGET);
-                if updateError is error {
-                    log:printError("Unable to persist scan dispatch failure",
-                            updateError, requestId = requestId,
-                            scanId = publicScanId);
-                }
-            }
             log:printWarn("Scanner create request failed",
                     requestId = requestId, failureCode = scannerResult.code);
             return mapCreateFailure(scannerResult, requestId);
         }
 
-        if persistenceEnabled {
-            ScanUpdateOutcome|error updateError =
-                markScanDispatched(publicScanId, scannerResult.id);
-            if updateError is error {
-                log:printError("Unable to persist scanner correlation", updateError,
-                        requestId = requestId, scanId = publicScanId);
-                return persistenceUnavailable(requestId);
-            }
-            if updateError == "UNCHANGED" {
-                log:printError("Queued scan was not available for dispatch update",
-                        requestId = requestId, scanId = publicScanId);
-                return persistenceUnavailable(requestId);
-            }
-        }
-
         CreateScanData scanData = {
-            id: persistenceEnabled ? publicScanId : scannerResult.id,
+            id: scannerResult.id,
             status: scannerResult.status,
             target: scannerResult.target,
             startPort: scannerResult.startPort,
@@ -92,6 +87,36 @@ service / on new http:Listener(listenerPort) {
             headers: {requestId: requestId},
             body: {success: true, data: scanData}
         };
+    }
+
+    resource function get api/v1/scans(int pageSize = 20,
+            string? cursorCreatedAt = (), string? cursorId = ())
+            returns ScanHistoryOk|BadRequestError|ServiceUnavailableError {
+        string requestId = uuid:createType4AsString();
+        if pageSize < 1 || pageSize > 100 {
+            return badRequest(INVALID_REQUEST, "Page size must be between 1 and 100",
+                    {"field": "pageSize", min: 1, max: 100}, requestId);
+        }
+        if (cursorCreatedAt is string) != (cursorId is string) ||
+                (cursorId is string && !uuid:validate(cursorId)) {
+            return badRequest(INVALID_REQUEST,
+                    "Both cursorCreatedAt and a valid cursorId are required",
+                    {"field": "cursor"}, requestId);
+        }
+        PersistedScanHistoryItem[]|error loaded =
+            cursorCreatedAt is string && cursorId is string ?
+            loadScanHistoryAfter(developmentOwnerSubject, cursorCreatedAt,
+                    cursorId, pageSize) :
+            loadScanHistory(developmentOwnerSubject, pageSize);
+        if loaded is error {
+            log:printError("Unable to load scan history", loaded,
+                    requestId = requestId);
+            return persistenceUnavailable(requestId);
+        }
+        ScanHistoryItem[] items = from PersistedScanHistoryItem item in loaded
+            select persistedHistoryItem(item);
+        ScanHistoryData data = {items: items, pageSize: pageSize};
+        return {headers: {requestId: requestId}, body: {success: true, data: data}};
     }
 
     resource function get api/v1/scans/[string scanId]()
@@ -156,6 +181,58 @@ service / on new http:Listener(listenerPort) {
     }
 }
 
+function dispatchQueuedScanInBackground(string publicScanId,
+        CreateScanRequest request, string requestId) {
+    error? dispatchError = dispatchQueuedScan(publicScanId, request, requestId);
+    if dispatchError is error {
+        log:printError("Background scanner dispatch failed", dispatchError,
+                requestId = requestId, scanId = publicScanId);
+    }
+}
+
+function dispatchQueuedScan(string publicScanId, CreateScanRequest request,
+        string requestId) returns error? {
+    check validateDispatchLease(dispatchLeaseSeconds, scannerResponseTimeout);
+    string leaseToken = uuid:createType4AsString();
+    ScanUpdateOutcome|error claim = claimScanDispatch(publicScanId, leaseToken);
+    if claim is error {
+        return claim;
+    }
+    if claim == "UNCHANGED" {
+        // Another request or worker owns the unexpired durable lease.
+        return;
+    }
+    ScannerCreateResponse|ScannerFailure scannerResult =
+        createScannerJob(request, requestId);
+    if scannerResult is ScannerFailure {
+        // Availability failures remain QUEUED so a later detail poll can retry.
+        if scannerResult.code == SCANNER_UNAVAILABLE {
+            log:printWarn("Scanner dispatch deferred for recovery",
+                    requestId = requestId, scanId = publicScanId);
+            return;
+        }
+        ScanUpdateOutcome|error failed = markScanDispatchFailed(publicScanId,
+                scannerResult.code, scannerResult.code == BLOCKED_TARGET,
+                leaseToken);
+        if failed is error {
+            return failed;
+        }
+        return;
+    }
+    ScanUpdateOutcome|error dispatched =
+        markScanDispatched(publicScanId, scannerResult.id, leaseToken);
+    if dispatched is error {
+        return dispatched;
+    }
+}
+
+function validateDispatchLease(int leaseSeconds, decimal responseTimeout)
+        returns error? {
+    if <decimal>leaseSeconds <= responseTimeout {
+        return error("dispatch lease must exceed scanner response timeout");
+    }
+}
+
 function getPersistedScanStatus(string scanId, string requestId)
         returns ScanStatusOk|NotFoundError|ServiceUnavailableError|
         InternalServerErrorResponse {
@@ -173,6 +250,28 @@ function getPersistedScanStatus(string scanId, string requestId)
 
     if job.status == "QUEUED" || job.status == "RUNNING" {
         string? scannerId = job.scannerScanId;
+        if job.status == "QUEUED" && scannerId is () {
+            CreateScanRequest recoveryRequest = {
+                target: job.target,
+                startPort: job.startPort,
+                endPort: job.endPort,
+                authorized: true
+            };
+            error? recoveryError = dispatchQueuedScan(job.id, recoveryRequest,
+                    requestId);
+            if recoveryError is error {
+                log:printError("Unable to recover queued scan dispatch", recoveryError,
+                        requestId = requestId, scanId = scanId);
+                return persistenceUnavailable(requestId);
+            }
+            PersistedScanJob|error? recovered =
+                loadScanJob(scanId, developmentOwnerSubject);
+            if recovered is error || recovered is () {
+                return persistenceUnavailable(requestId);
+            }
+            job = recovered;
+            scannerId = job.scannerScanId;
+        }
         if scannerId is string {
             ScannerStatusResponse|ScannerFailure scannerResult =
                 getScannerJob(scannerId, requestId);
@@ -191,7 +290,17 @@ function getPersistedScanStatus(string scanId, string requestId)
                     };
                     return unavailable;
                 }
-                return internalServerError(requestId);
+                ScanUpdateOutcome|error failed =
+                    markScanSynchronizationFailed(job.id, scannerResult.code);
+                if failed is error {
+                    return persistenceUnavailable(requestId);
+                }
+                PersistedScanJob|error? failedJob =
+                    loadScanJob(scanId, developmentOwnerSubject);
+                if failedJob is error || failedJob is () {
+                    return persistenceUnavailable(requestId);
+                }
+                return persistedScanResponse(failedJob, [], requestId);
             }
             error? syncError = synchronizeScanJob(job, scannerResult);
             if syncError is error {
@@ -229,8 +338,7 @@ function getPersistedScanStatus(string scanId, string requestId)
 
 function persistedScanResponse(PersistedScanJob job, ScanPortResult[] ports,
         string requestId) returns ScanStatusOk {
-    ScanJobStatus publicStatus = job.status == "COMPLETED" ? "completed" :
-            job.status == "FAILED" || job.status == "BLOCKED" ? "failed" : "running";
+    ScanJobStatus publicStatus = persistedPublicStatus(job.status);
     ScanResultData? result = ();
     if job.status == "COMPLETED" {
         result = {
@@ -252,6 +360,38 @@ function persistedScanResponse(PersistedScanJob job, ScanPortResult[] ports,
         result: result
     };
     return {headers: {requestId: requestId}, body: {success: true, data: data}};
+}
+
+function persistedPublicStatus(string status) returns ScanJobStatus {
+    return status == "QUEUED" ? "queued" : status == "COMPLETED" ? "completed" :
+                status == "FAILED" || status == "BLOCKED" ? "failed" : "running";
+}
+
+function persistedHistoryItem(PersistedScanHistoryItem item)
+        returns ScanHistoryItem {
+    return {
+        id: item.id,
+        status: persistedPublicStatus(item.status),
+        target: item.target,
+        startPort: item.startPort,
+        endPort: item.endPort,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt
+    };
+}
+
+function jobLimitReached(string requestId) returns TooManyRequestsError {
+    return {
+        headers: {requestId: requestId},
+        body: {
+            success: false,
+            'error: {
+                code: JOB_LIMIT_REACHED,
+                message: "Too many active scans; wait for one to finish",
+                requestId: requestId
+            }
+        }
+    };
 }
 
 function scanNotFound(string requestId) returns NotFoundError {

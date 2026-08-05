@@ -13,6 +13,7 @@ public const string BLOCKED_TARGET = "BLOCKED_TARGET";
 public const string SCAN_NOT_FOUND = "SCAN_NOT_FOUND";
 public const string SCANNER_UNAVAILABLE = "SCANNER_UNAVAILABLE";
 public const string PERSISTENCE_UNAVAILABLE = "PERSISTENCE_UNAVAILABLE";
+public const string JOB_LIMIT_REACHED = "JOB_LIMIT_REACHED";
 public const string INTERNAL_ERROR = "INTERNAL_ERROR";
 
 public type ApiError record {|
@@ -49,7 +50,7 @@ public type CreateScanRequest record {|
     boolean authorized;
 |};
 
-public type ScanJobStatus "accepted"|"running"|"completed"|"failed";
+public type ScanJobStatus "queued"|"accepted"|"running"|"completed"|"failed";
 
 public type ScanPortState "open"|"closed";
 
@@ -86,6 +87,21 @@ public type ScanStatusData record {|
     ScanResultData? result = ();
 |};
 
+public type ScanHistoryItem record {|
+    string id;
+    ScanJobStatus status;
+    string target;
+    int startPort;
+    int endPort;
+    string createdAt;
+    string updatedAt;
+|};
+
+public type ScanHistoryData record {|
+    ScanHistoryItem[] items;
+    int pageSize;
+|};
+
 public type CreateScanAccepted record {|
     *http:Accepted;
     ResponseHeaders headers;
@@ -96,6 +112,18 @@ public type ScanStatusOk record {|
     *http:Ok;
     ResponseHeaders headers;
     SuccessResponse body;
+|};
+
+public type ScanHistoryOk record {|
+    *http:Ok;
+    ResponseHeaders headers;
+    SuccessResponse body;
+|};
+
+public type TooManyRequestsError record {|
+    *http:TooManyRequests;
+    ResponseHeaders headers;
+    ErrorResponse body;
 |};
 
 public type BadRequestError record {|

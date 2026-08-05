@@ -269,6 +269,46 @@ function testPersistedRunningScanDoesNotExposeResult() {
 }
 
 @test:Config {}
+function testPersistedQueuedScanIsDistinctFromRunning() {
+    PersistedScanJob job = {
+        id: "00000000-0000-4000-8000-000000000014",
+        target: "scanme.nmap.org",
+        startPort: 1,
+        endPort: 2,
+        status: "QUEUED",
+        createdAt: "2026-08-05T00:00:00Z",
+        updatedAt: "2026-08-05T00:00:00Z"
+    };
+    ScanStatusOk response = persistedScanResponse(job, [], "request-id");
+    test:assertEquals(response.body.data.status, "queued");
+    test:assertEquals(response.body.data.result, ());
+}
+
+@test:Config {}
+function testHistoryProjectionUsesStablePublicLifecycle() {
+    PersistedScanHistoryItem stored = {
+        id: "00000000-0000-4000-8000-000000000015",
+        target: "scanme.nmap.org",
+        startPort: 1,
+        endPort: 2,
+        status: "BLOCKED",
+        createdAt: "2026-08-05T00:00:00Z",
+        updatedAt: "2026-08-05T00:00:01Z"
+    };
+    ScanHistoryItem item = persistedHistoryItem(stored);
+    test:assertEquals(item.id, stored.id);
+    test:assertEquals(item.status, "failed");
+}
+
+@test:Config {}
+function testHistoryEndpointRejectsUnboundedPageSize() returns error? {
+    http:Response response = check apiClient->/api/v1/scans.get(pageSize = 101);
+    test:assertEquals(response.statusCode, http:STATUS_BAD_REQUEST);
+    json payload = check response.getJsonPayload();
+    test:assertEquals(payload.'error.code, INVALID_REQUEST);
+}
+
+@test:Config {}
 function testLifecycleUpdateOutcomesExposeUnchangedRows() {
     sql:ExecutionResult applied = {
         affectedRowCount: 1,
@@ -281,6 +321,13 @@ function testLifecycleUpdateOutcomesExposeUnchangedRows() {
     test:assertEquals(scanUpdateOutcome(applied), "APPLIED");
     test:assertEquals(scanUpdateOutcome(unchanged), "UNCHANGED");
     test:assertTrue(requireAppliedUpdate(unchanged, "stale update") is error);
+}
+
+@test:Config {}
+function testDispatchLeaseMustOutlastScannerTimeout() {
+    test:assertEquals(validateDispatchLease(6, 5.0), ());
+    test:assertTrue(validateDispatchLease(5, 5.0) is error);
+    test:assertTrue(validateDispatchLease(4, 5.0) is error);
 }
 
 @test:Config {}

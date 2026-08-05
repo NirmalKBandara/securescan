@@ -9,6 +9,8 @@ configurable string databaseName = "securescan_dev";
 configurable string databaseUser = "securescan";
 configurable string databasePassword = "securescan_dev_only";
 configurable string developmentOwnerSubject = "development-user";
+configurable int maxActiveScansPerOwner = 5;
+configurable int dispatchLeaseSeconds = 15;
 
 final postgresql:Client? databaseClient = persistenceEnabled ? check new (
         host = databaseHost,
@@ -54,37 +56,105 @@ type LockedScanJob record {|
 
 type ScanUpdateOutcome "APPLIED"|"UNCHANGED";
 
-function insertQueuedScan(string id, CreateScanRequest request) returns error? {
+type QueuedScanInsertOutcome "CREATED"|"LIMIT_REACHED";
+
+type ActiveScanCount record {|
+    int activeCount;
+|};
+
+type AdvisoryLockResult record {|
+    string locked;
+|};
+
+function insertQueuedScan(string id, CreateScanRequest request)
+        returns QueuedScanInsertOutcome|error {
     postgresql:Client db = check getDatabaseClient();
     string target = request.target.trim();
-    _ = check db->execute(`
-        INSERT INTO scan_jobs
-            (id, owner_subject, target, start_port, end_port, status)
-        VALUES (CAST(${id} AS uuid), ${developmentOwnerSubject}, ${target},
-                ${request.startPort}, ${request.endPort}, 'QUEUED')`);
+    transaction {
+        // Serialize admission per owner so concurrent requests cannot both
+        // pass the active-job check.
+        stream<AdvisoryLockResult, sql:Error?> lockStream = db->query(`
+            SELECT pg_advisory_xact_lock(
+                hashtext(${developmentOwnerSubject}))::text AS "locked"`);
+        AdvisoryLockResult[] lockRows = check from AdvisoryLockResult lockResult in lockStream
+            select lockResult;
+        _ = lockRows;
+        stream<ActiveScanCount, sql:Error?> countStream = db->query(`
+            SELECT count(*)::bigint AS "activeCount"
+              FROM scan_jobs
+             WHERE owner_subject = ${developmentOwnerSubject}
+               AND status IN ('QUEUED', 'RUNNING')`);
+        ActiveScanCount[] counts = check from ActiveScanCount count in countStream
+            select count;
+        boolean admitted = counts[0].activeCount < maxActiveScansPerOwner;
+        if admitted {
+            _ = check db->execute(`
+                INSERT INTO scan_jobs
+                    (id, owner_subject, target, start_port, end_port, status)
+                VALUES (CAST(${id} AS uuid), ${developmentOwnerSubject}, ${target},
+                        ${request.startPort}, ${request.endPort}, 'QUEUED')`);
+        }
+        check commit;
+        if !admitted {
+            return "LIMIT_REACHED";
+        }
+    }
+    return "CREATED";
 }
 
-function markScanDispatched(string id, string scannerScanId)
+function claimScanDispatch(string id, string leaseToken)
+        returns ScanUpdateOutcome|error {
+    postgresql:Client db = check getDatabaseClient();
+    sql:ExecutionResult update = check db->execute(`
+        UPDATE scan_jobs
+           SET dispatch_lease_token = CAST(${leaseToken} AS uuid),
+               dispatch_lease_expires_at = CURRENT_TIMESTAMP
+                   + make_interval(secs => ${dispatchLeaseSeconds}),
+               updated_at = CURRENT_TIMESTAMP
+         WHERE id = CAST(${id} AS uuid)
+           AND status = 'QUEUED' AND scanner_scan_id IS NULL
+           AND (dispatch_lease_expires_at IS NULL
+                OR dispatch_lease_expires_at <= CURRENT_TIMESTAMP)`);
+    return scanUpdateOutcome(update);
+}
+
+function markScanDispatched(string id, string scannerScanId, string leaseToken)
         returns ScanUpdateOutcome|error {
     postgresql:Client db = check getDatabaseClient();
     sql:ExecutionResult update = check db->execute(`
         UPDATE scan_jobs
            SET scanner_scan_id = CAST(${scannerScanId} AS uuid),
                status = 'RUNNING', started_at = CURRENT_TIMESTAMP,
+               dispatch_lease_token = NULL, dispatch_lease_expires_at = NULL,
                updated_at = CURRENT_TIMESTAMP
-         WHERE id = CAST(${id} AS uuid) AND status = 'QUEUED'`);
+         WHERE id = CAST(${id} AS uuid) AND status = 'QUEUED'
+           AND dispatch_lease_token = CAST(${leaseToken} AS uuid)`);
     return scanUpdateOutcome(update);
 }
 
 function markScanDispatchFailed(string id, string failureCode,
-        boolean blocked) returns ScanUpdateOutcome|error {
+        boolean blocked, string leaseToken) returns ScanUpdateOutcome|error {
     postgresql:Client db = check getDatabaseClient();
     string status = blocked ? "BLOCKED" : "FAILED";
     sql:ExecutionResult update = check db->execute(`
         UPDATE scan_jobs
            SET status = ${status}, failure_code = ${failureCode},
+               dispatch_lease_token = NULL, dispatch_lease_expires_at = NULL,
                finished_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-         WHERE id = CAST(${id} AS uuid) AND status = 'QUEUED'`);
+         WHERE id = CAST(${id} AS uuid) AND status = 'QUEUED'
+           AND dispatch_lease_token = CAST(${leaseToken} AS uuid)`);
+    return scanUpdateOutcome(update);
+}
+
+function markScanSynchronizationFailed(string id, string failureCode)
+        returns ScanUpdateOutcome|error {
+    postgresql:Client db = check getDatabaseClient();
+    sql:ExecutionResult update = check db->execute(`
+        UPDATE scan_jobs
+           SET status = 'FAILED', failure_code = ${failureCode},
+               finished_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE id = CAST(${id} AS uuid)
+           AND status IN ('QUEUED', 'RUNNING')`);
     return scanUpdateOutcome(update);
 }
 

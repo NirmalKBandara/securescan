@@ -16,8 +16,8 @@ correlate a safe client error with the corresponding application logs.
 
 ## POST /api/v1/scans
 
-Validates an authorized scan request and creates an asynchronous job in the Go
-scanner.
+Validates an authorized scan request, commits a durable `QUEUED` job, and then
+submits it to the Go scanner in the background.
 
 ### Request
 
@@ -39,7 +39,7 @@ Status: `202 Accepted`
   "success": true,
   "data": {
     "id": "945686d6-c53f-4717-9d98-51f913fc8904",
-    "status": "accepted",
+    "status": "queued",
     "target": "scanme.nmap.org",
     "startPort": 1,
     "endPort": 100
@@ -50,6 +50,13 @@ Status: `202 Accepted`
 The returned `id` is generated and owned by Ballerina. The internal Go scanner
 ID is stored separately and is never exposed as the public identifier.
 
+The response is sent after PostgreSQL commits and does not wait for the Go
+scanner. At most `maxActiveScansPerOwner` queued/running jobs are admitted for
+one owner; excess requests return `429 JOB_LIMIT_REACHED` without creating a
+row. A durable dispatch lease prevents a background submission from racing an
+immediate status poll. Expired leases are retried by later polls after an
+outage or service restart.
+
 ## GET /api/v1/scans/{scanId}
 
 Validates the supplied UUID, loads the corresponding PostgreSQL job, refreshes
@@ -59,8 +66,9 @@ public state and results.
 Jobs follow this lifecycle:
 
 ```text
-accepted -> running -> completed
-                    -> failed
+queued -> running -> completed
+       -> blocked
+       -> failed
 ```
 
 ### Completed response
@@ -108,9 +116,20 @@ and result reads are owner-scoped, and result rows are always returned in
 `address, port` order. Until WSO2 integration, that owner is the configured
 development subject.
 
-The persistence repository implements bounded scan-history reads ordered by
-`created_at DESC, id DESC`, including a matching keyset cursor query. The public
-`GET /api/v1/scans` collection resource is part of the Day 14 API checkpoint.
+## GET /api/v1/scans
+
+Returns the authenticated owner's durable jobs ordered by
+`created_at DESC, id DESC`. `pageSize` defaults to 20 and must be from 1 to 100.
+For the next keyset page, supply both `cursorCreatedAt` and `cursorId` from the
+last item in the current page.
+
+```text
+GET /api/v1/scans?pageSize=20
+GET /api/v1/scans?pageSize=20&cursorCreatedAt=2026-08-05T10:00:00Z&cursorId=945686d6-c53f-4717-9d98-51f913fc8904
+```
+
+Until WSO2 integration, ownership is scoped with the configured development
+subject.
 
 ## Error response
 
@@ -142,4 +161,17 @@ never returned to public clients.
 | `SCAN_NOT_FOUND` | 404 | No job exists for the supplied UUID |
 | `SCANNER_UNAVAILABLE` | 503 | Internal scanner is unreachable or timed out |
 | `PERSISTENCE_UNAVAILABLE` | 503 | PostgreSQL cannot serve the scan operation |
+| `JOB_LIMIT_REACHED` | 429 | The owner already has the configured maximum active jobs |
 | `INTERNAL_ERROR` | 500 | Unexpected internal or downstream response |
+
+## Dispatch recovery guarantee
+
+Transient scanner unavailability leaves a job queued. Polling its detail
+endpoint retries submission after the durable lease expires. Permanent
+validation/policy failures become terminal `FAILED`/`BLOCKED` records, and a
+correlated scanner job that later disappears becomes `FAILED`.
+
+There is one explicitly documented at-least-once edge: if Go accepts a job and
+the Ballerina process stops before saving the returned scanner ID, a later lease
+retry can create another internal job. Eliminating that crash window requires
+an idempotency key supported by the Go scanner API.

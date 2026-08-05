@@ -27,6 +27,7 @@ BEGIN
         'scan_jobs_created_idx',
         'scan_jobs_status_created_idx',
         'scan_jobs_queued_idx',
+        'scan_jobs_dispatch_recovery_idx',
         'scan_jobs_allowed_target_idx',
         'scan_results_open_idx',
         'allowed_targets_active_hostname_idx',
@@ -73,6 +74,7 @@ BEGIN
         'scan_jobs_scanner_id_ck',
         'scan_jobs_blocked_ck',
         'scan_jobs_duration_ck',
+        'scan_jobs_dispatch_lease_ck',
         'scan_results_pkey',
         'scan_results_scan_job_id_fkey',
         'scan_results_port_ck',
@@ -104,8 +106,8 @@ $verification$;
 
 DO $verification$
 BEGIN
-    IF (SELECT count(*) FROM schema_migrations) <> 2 THEN
-        RAISE EXCEPTION 'expected exactly two applied migrations';
+    IF (SELECT count(*) FROM schema_migrations) <> 3 THEN
+        RAISE EXCEPTION 'expected exactly three applied migrations';
     END IF;
 
     IF (SELECT count(*) FROM allowed_targets
@@ -144,6 +146,57 @@ $verification$;
 -- Day 13 acceptance fixtures run in one outer transaction and are rolled back,
 -- so verification can exercise lifecycle and ordering without retaining jobs.
 BEGIN;
+
+DO $verification$
+DECLARE
+    affected_rows bigint;
+BEGIN
+    INSERT INTO scan_jobs (
+        id, owner_subject, target, start_port, end_port, status
+    ) VALUES (
+        '20000000-0000-4000-8000-000000000020',
+        'test:dispatch-lease', 'scan.dev.example', 80, 80, 'QUEUED'
+    );
+
+    UPDATE scan_jobs
+       SET dispatch_lease_token = '30000000-0000-4000-8000-000000000020',
+           dispatch_lease_expires_at = CURRENT_TIMESTAMP + interval '15 seconds'
+     WHERE id = '20000000-0000-4000-8000-000000000020'
+       AND status = 'QUEUED' AND scanner_scan_id IS NULL
+       AND (dispatch_lease_expires_at IS NULL
+            OR dispatch_lease_expires_at <= CURRENT_TIMESTAMP);
+    GET DIAGNOSTICS affected_rows = ROW_COUNT;
+    IF affected_rows <> 1 THEN
+        RAISE EXCEPTION 'first dispatcher did not acquire lease';
+    END IF;
+
+    UPDATE scan_jobs
+       SET dispatch_lease_token = '30000000-0000-4000-8000-000000000021',
+           dispatch_lease_expires_at = CURRENT_TIMESTAMP + interval '15 seconds'
+     WHERE id = '20000000-0000-4000-8000-000000000020'
+       AND status = 'QUEUED' AND scanner_scan_id IS NULL
+       AND (dispatch_lease_expires_at IS NULL
+            OR dispatch_lease_expires_at <= CURRENT_TIMESTAMP);
+    GET DIAGNOSTICS affected_rows = ROW_COUNT;
+    IF affected_rows <> 0 THEN
+        RAISE EXCEPTION 'concurrent dispatcher replaced an active lease';
+    END IF;
+
+    UPDATE scan_jobs
+       SET dispatch_lease_expires_at = CURRENT_TIMESTAMP - interval '1 second'
+     WHERE id = '20000000-0000-4000-8000-000000000020';
+    UPDATE scan_jobs
+       SET dispatch_lease_token = '30000000-0000-4000-8000-000000000021',
+           dispatch_lease_expires_at = CURRENT_TIMESTAMP + interval '15 seconds'
+     WHERE id = '20000000-0000-4000-8000-000000000020'
+       AND status = 'QUEUED' AND scanner_scan_id IS NULL
+       AND dispatch_lease_expires_at <= CURRENT_TIMESTAMP;
+    GET DIAGNOSTICS affected_rows = ROW_COUNT;
+    IF affected_rows <> 1 THEN
+        RAISE EXCEPTION 'expired dispatch lease was not recoverable';
+    END IF;
+END
+$verification$;
 
 INSERT INTO scan_jobs (
     id, scanner_scan_id, owner_subject, target, start_port, end_port,

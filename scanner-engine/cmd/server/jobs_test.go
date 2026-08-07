@@ -9,14 +9,16 @@ import (
 )
 
 func TestJobStoreCreatesAndGetsJob(t *testing.T) {
-	store := newJobStore()
+	store := newJobStore(100, 1000)
 	job := newScanJob("scan-1", models.ScanConfig{
 		Target:    "8.8.8.8",
 		StartPort: 1,
 		EndPort:   100,
 	})
 
-	store.create(job)
+	if err := store.create(job); err != nil {
+		t.Fatalf("create job: %v", err)
+	}
 
 	storedJob, found := store.get(job.ID)
 	if !found {
@@ -33,7 +35,7 @@ func TestJobStoreCreatesAndGetsJob(t *testing.T) {
 }
 
 func TestJobStoreSupportsConcurrentAccess(t *testing.T) {
-	store := newJobStore()
+	store := newJobStore(100, 1000)
 	const jobCount = 100
 
 	var waitGroup sync.WaitGroup
@@ -44,11 +46,14 @@ func TestJobStoreSupportsConcurrentAccess(t *testing.T) {
 			defer waitGroup.Done()
 
 			jobID := fmt.Sprintf("scan-%d", id)
-			store.create(newScanJob(jobID, models.ScanConfig{
+			if err := store.create(newScanJob(jobID, models.ScanConfig{
 				Target:    "8.8.8.8",
 				StartPort: 1,
 				EndPort:   10,
-			}))
+			})); err != nil {
+				t.Errorf("create job %q: %v", jobID, err)
+				return
+			}
 
 			if _, found := store.get(jobID); !found {
 				t.Errorf("expected job %q to be found", jobID)

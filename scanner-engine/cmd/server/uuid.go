@@ -3,6 +3,11 @@ package main
 import (
 	"crypto/rand"
 	"fmt"
+	"regexp"
+)
+
+var canonicalUUIDPattern = regexp.MustCompile(
+	`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`,
 )
 
 func newUUID() (string, error) {
@@ -23,4 +28,8 @@ func newUUID() (string, error) {
 		bytes[8:10],
 		bytes[10:16],
 	), nil
+}
+
+func validUUID(value string) bool {
+	return canonicalUUIDPattern.MatchString(value)
 }

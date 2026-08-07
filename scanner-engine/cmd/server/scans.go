@@ -13,6 +13,7 @@ import (
 )
 
 const maximumRequestBodyBytes = 4096
+const idempotencyHeader = "X-Idempotency-Key"
 
 type api struct {
 	config appconfig.Config
@@ -39,7 +40,7 @@ type scanRunner func(models.ScanConfig) (models.ScanResult, error)
 func newAPI(config appconfig.Config, runner scanRunner) *api {
 	return &api{
 		config: config,
-		jobs:   newJobStore(),
+		jobs:   newJobStore(config.MaxActiveScans, config.MaxRetainedJobs),
 		scan:   runner,
 	}
 }
@@ -70,9 +71,18 @@ func (api *api) createScanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	idempotencyKey := strings.TrimSpace(r.Header.Get(idempotencyHeader))
+	if idempotencyKey != "" && !validUUID(idempotencyKey) {
+		writeJSON(w, http.StatusBadRequest, errorResponse{
+			Code:  errorCodeInvalidIdempotencyKey,
+			Error: "X-Idempotency-Key must be a canonical UUID",
+		})
+		return
+	}
+
 	// API input is converted into the same configuration used by the CLI.
 	scanConfig := models.ScanConfig{
-		Target:              request.Target,
+		Target:              strings.TrimSpace(request.Target),
 		StartPort:           request.StartPort,
 		EndPort:             request.EndPort,
 		Timeout:             api.config.ScanTimeout,
@@ -121,16 +131,40 @@ func (api *api) createScanHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	job := newScanJob(id, scanConfig)
-	api.jobs.create(job)
+	admittedJob, created, err := api.jobs.admit(job, idempotencyKey)
+	if errors.Is(err, errIdempotencyConflict) {
+		writeJSON(w, http.StatusConflict, errorResponse{
+			Code:  errorCodeIdempotencyConflict,
+			Error: err.Error(),
+		})
+		return
+	}
+	if errors.Is(err, errActiveJobLimit) {
+		writeJSON(w, http.StatusTooManyRequests, errorResponse{
+			Code:  errorCodeJobLimitReached,
+			Error: "too many active scan jobs",
+		})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{
+			Code:  errorCodeInternal,
+			Error: "failed to admit scan job",
+		})
+		return
+	}
 
 	writeJSON(w, http.StatusAccepted, createScanResponse{
-		ID:        job.ID,
-		Status:    job.Status,
-		Target:    job.Target,
-		StartPort: job.StartPort,
-		EndPort:   job.EndPort,
+		ID:        admittedJob.ID,
+		Status:    jobStatusAccepted,
+		Target:    admittedJob.Target,
+		StartPort: admittedJob.StartPort,
+		EndPort:   admittedJob.EndPort,
 	})
 
+	if !created {
+		return
+	}
 	// The HTTP request can finish while the scan continues in the background.
 	go api.runScan(job.ID, scanConfig)
 }

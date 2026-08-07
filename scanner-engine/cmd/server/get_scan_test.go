@@ -17,7 +17,9 @@ func TestGetScanReturnsStoredJob(t *testing.T) {
 		StartPort: 1,
 		EndPort:   10,
 	})
-	api.jobs.create(job)
+	if err := api.jobs.create(job); err != nil {
+		t.Fatalf("create job: %v", err)
+	}
 
 	request := httptest.NewRequest(
 		http.MethodGet,
@@ -82,7 +84,9 @@ func TestRunScanCompletesJob(t *testing.T) {
 		EndPort:   2,
 	}
 	job := newScanJob("scan-complete", config)
-	api.jobs.create(job)
+	if err := api.jobs.create(job); err != nil {
+		t.Fatalf("create job: %v", err)
+	}
 
 	api.runScan(job.ID, config)
 
@@ -104,7 +108,9 @@ func TestRunScanMarksFailedJob(t *testing.T) {
 		},
 	)
 	job := newScanJob("scan-failed", models.ScanConfig{})
-	api.jobs.create(job)
+	if err := api.jobs.create(job); err != nil {
+		t.Fatalf("create job: %v", err)
+	}
 
 	api.runScan(job.ID, models.ScanConfig{})
 

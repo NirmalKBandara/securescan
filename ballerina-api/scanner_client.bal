@@ -1,4 +1,5 @@
 import ballerina/http;
+import ballerina/uuid;
 
 configurable string scannerServiceUrl = "http://localhost:8081";
 configurable decimal scannerConnectTimeout = 2.0;
@@ -61,14 +62,18 @@ type ScannerErrorResponse record {|
     string 'error;
 |};
 
-function createScannerJob(CreateScanRequest request, string requestId)
+function createScannerJob(CreateScanRequest request, string requestId,
+        string idempotencyKey)
         returns ScannerCreateResponse|ScannerFailure {
     ScannerCreateRequest scannerRequest = {
         target: request.target.trim(),
         startPort: request.startPort,
         endPort: request.endPort
     };
-    map<string|string[]> headers = {"X-Request-ID": requestId};
+    map<string|string[]> headers = {
+        "X-Request-ID": requestId,
+        "X-Idempotency-Key": idempotencyKey
+    };
 
     http:Response|http:ClientError result =
         scannerClient->/internal/scans.post(scannerRequest, headers = headers);
@@ -84,6 +89,9 @@ function createScannerJob(CreateScanRequest request, string requestId)
             result.statusCode == http:STATUS_GATEWAY_TIMEOUT {
         return {code: SCANNER_UNAVAILABLE};
     }
+    if result.statusCode == http:STATUS_TOO_MANY_REQUESTS {
+        return {code: JOB_LIMIT_REACHED};
+    }
     if result.statusCode != http:STATUS_ACCEPTED {
         return {code: INTERNAL_ERROR};
     }
@@ -93,7 +101,11 @@ function createScannerJob(CreateScanRequest request, string requestId)
         return {code: INTERNAL_ERROR};
     }
     ScannerCreateResponse|error response = payload.cloneWithType();
-    if response is error || response.status != "accepted" {
+    if response is error || response.status != "accepted" ||
+            !uuid:validate(response.id) ||
+            response.target != scannerRequest.target ||
+            response.startPort != scannerRequest.startPort ||
+            response.endPort != scannerRequest.endPort {
         return {code: INTERNAL_ERROR};
     }
     return response;
@@ -125,7 +137,8 @@ function getScannerJob(string scanId, string requestId)
         return {code: INTERNAL_ERROR};
     }
     ScannerStatusResponse|error response = payload.cloneWithType();
-    if response is error || !hasValidLifecycleShape(response) {
+    if response is error || response.id != scanId ||
+            !uuid:validate(response.id) || !hasValidLifecycleShape(response) {
         return {code: INTERNAL_ERROR};
     }
     return response;

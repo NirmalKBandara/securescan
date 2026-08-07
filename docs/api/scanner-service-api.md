@@ -40,7 +40,9 @@ accepted -> running -> completed
 The POST endpoint returns after storing a job. The scan runs in a background
 goroutine, and clients poll the GET endpoint using the returned UUID.
 
-Jobs are currently held in memory. Restarting the service removes all jobs.
+Jobs are held in memory. Active work is bounded by `MAX_ACTIVE_SCANS` (default
+10), and the oldest terminal jobs are evicted after `MAX_RETAINED_JOBS`
+(default 1000). Restarting the service removes all jobs.
 
 ## GET /health
 
@@ -60,6 +62,12 @@ Successful response: `200 OK`
 Validates and creates a scan job.
 
 The request must use `Content-Type: application/json`.
+
+Retry-capable callers should also send `X-Idempotency-Key` containing the
+durable public scan UUID. The same key with the same normalized target and port
+range returns the original job and never starts a second goroutine. Reusing a
+key for different scan parameters returns `409 IDEMPOTENCY_CONFLICT`. The
+header remains optional for backward compatibility.
 
 ```json
 {
@@ -88,8 +96,9 @@ Before accepting the job, the service:
 3. Validates the requested port range and configured limits.
 4. Validates and resolves the target.
 5. Rejects blocked or non-allowlisted addresses.
-6. Generates a random UUID v4.
-7. Stores the job before starting asynchronous execution.
+6. Applies idempotency and the global active-job limit atomically.
+7. Generates a random UUID v4 for newly admitted work.
+8. Stores the job before starting asynchronous execution.
 
 ## GET /internal/scans/{id}
 
@@ -153,6 +162,8 @@ The service uses these HTTP status codes:
 | `202 Accepted` | A validated scan job was created |
 | `400 Bad Request` | JSON, target, port range or scan ID is invalid |
 | `404 Not Found` | The requested scan job does not exist |
+| `409 Conflict` | An idempotency key was reused for different scan parameters |
+| `429 Too Many Requests` | The global active-job limit has been reached |
 | `405 Method Not Allowed` | The endpoint does not support the HTTP method |
 | `415 Unsupported Media Type` | A POST request is not JSON |
 | `500 Internal Server Error` | The service could not create a scan ID |

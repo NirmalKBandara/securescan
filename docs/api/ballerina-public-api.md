@@ -54,8 +54,10 @@ The response is sent after PostgreSQL commits and does not wait for the Go
 scanner. At most `maxActiveScansPerOwner` queued/running jobs are admitted for
 one owner; excess requests return `429 JOB_LIMIT_REACHED` without creating a
 row. A durable dispatch lease prevents a background submission from racing an
-immediate status poll. Expired leases are retried by later polls after an
-outage or service restart.
+immediate status poll. Ballerina sends the public scan UUID to Go as an
+idempotency key, making an ambiguous submission safe to retry. Expired leases
+are retried by periodic reconciliation or later polls after an outage or
+service restart.
 
 ## GET /api/v1/scans/{scanId}
 
@@ -166,12 +168,11 @@ never returned to public clients.
 
 ## Dispatch recovery guarantee
 
-Transient scanner unavailability leaves a job queued. Polling its detail
-endpoint retries submission after the durable lease expires. Permanent
-validation/policy failures become terminal `FAILED`/`BLOCKED` records, and a
-correlated scanner job that later disappears becomes `FAILED`.
-
-There is one explicitly documented at-least-once edge: if Go accepts a job and
-the Ballerina process stops before saving the returned scanner ID, a later lease
-retry can create another internal job. Eliminating that crash window requires
-an idempotency key supported by the Go scanner API.
+Transient scanner unavailability or Go capacity pressure leaves a job queued.
+Periodic reconciliation and detail polling retry submission after the durable
+lease expires. The retry uses the public UUID as `X-Idempotency-Key`, so a Go
+job accepted before an ambiguous timeout is returned rather than duplicated.
+Permanent validation/policy failures become terminal `FAILED`/`BLOCKED`
+records, and a correlated scanner job that later disappears becomes `FAILED`.
+Scanner IDs, targets, port ranges, and completed result ranges must match the
+durable public job before synchronization is accepted.

@@ -149,6 +149,8 @@ func testConfig() appconfig.Config {
 		MaxPortsPerScan:    1000,
 		MaxConcurrentPorts: 100,
 		ScanTimeout:        time.Second,
+		MaxActiveScans:     100,
+		MaxRetainedJobs:    1000,
 	}
 }
 

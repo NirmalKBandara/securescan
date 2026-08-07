@@ -38,6 +38,11 @@ type MockUnavailable record {|
     json body;
 |};
 
+type MockTooManyRequests record {|
+    *http:TooManyRequests;
+    json body;
+|};
+
 type MockStatusOk record {|
     *http:Ok;
     ScannerStatusResponse body;
@@ -58,9 +63,11 @@ type MockNotFound record {|
 service / on new http:Listener(18081) {
     resource function post internal/scans(
             @http:Payload MockScannerRequest request,
-            @http:Header {name: "X-Request-ID"} string requestId)
-            returns MockAccepted|MockAcceptedJson|MockBadRequest|MockUnavailable {
-        if requestId == "" {
+            @http:Header {name: "X-Request-ID"} string requestId,
+            @http:Header {name: "X-Idempotency-Key"} string idempotencyKey)
+            returns MockAccepted|MockAcceptedJson|MockBadRequest|MockUnavailable|
+            MockTooManyRequests {
+        if requestId == "" || idempotencyKey == "" {
             MockBadRequest missingHeader = {
                 body: {
                     "code": "INVALID_REQUEST",
@@ -110,6 +117,12 @@ service / on new http:Listener(18081) {
                 body: {"error": "scanner unavailable"}
             };
             return unavailable;
+        }
+        if request.target == "busy.example" {
+            MockTooManyRequests busy = {
+                body: {"code": JOB_LIMIT_REACHED, "error": "scanner capacity reached"}
+            };
+            return busy;
         }
         if request.target == "malformed-response.example" {
             MockAcceptedJson malformed = {
@@ -331,6 +344,41 @@ function testDispatchLeaseMustOutlastScannerTimeout() {
 }
 
 @test:Config {}
+function testAsyncConfigurationMustBePositive() {
+    test:assertEquals(validateAsyncConfiguration(1, 1), ());
+    test:assertTrue(validateAsyncConfiguration(0, 1) is error);
+    test:assertTrue(validateAsyncConfiguration(1, 0) is error);
+}
+
+@test:Config {}
+function testScannerResponseMustMatchPersistedJob() {
+    PersistedScanJob job = {
+        id: "00000000-0000-4000-8000-000000000016",
+        scannerScanId: RUNNING_SCAN_ID,
+        target: "scanme.nmap.org",
+        startPort: 1,
+        endPort: 2,
+        status: "RUNNING",
+        createdAt: "2026-08-05T00:00:00Z",
+        updatedAt: "2026-08-05T00:00:01Z"
+    };
+    ScannerStatusResponse matching = {
+        id: RUNNING_SCAN_ID,
+        status: "running",
+        target: "scanme.nmap.org",
+        startPort: 1,
+        endPort: 2,
+        createdAt: "2026-08-05T00:00:00Z",
+        updatedAt: "2026-08-05T00:00:01Z"
+    };
+    test:assertTrue(scannerResponseMatchesJob(job, RUNNING_SCAN_ID, matching));
+
+    ScannerStatusResponse wrongTarget = matching.clone();
+    wrongTarget.target = "other.example";
+    test:assertFalse(scannerResponseMatchesJob(job, RUNNING_SCAN_ID, wrongTarget));
+}
+
+@test:Config {}
 function testHistoryPageSizeIsBounded() {
     test:assertEquals(validateHistoryLimit(1), ());
     test:assertEquals(validateHistoryLimit(100), ());
@@ -468,6 +516,13 @@ function testCreateScanMapsUnavailableScanner() returns error? {
     http:Response response = check postScan("unavailable.example", 1, 100, true);
     check assertSafeError(response, http:STATUS_SERVICE_UNAVAILABLE,
             SCANNER_UNAVAILABLE, "scanner unavailable");
+}
+
+@test:Config {}
+function testCreateScanMapsScannerCapacityLimit() returns error? {
+    http:Response response = check postScan("busy.example", 1, 100, true);
+    check assertSafeError(response, http:STATUS_TOO_MANY_REQUESTS,
+            JOB_LIMIT_REACHED, "scanner capacity reached");
 }
 
 @test:Config {}

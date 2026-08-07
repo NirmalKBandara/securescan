@@ -1,9 +1,36 @@
 import ballerina/http;
 import ballerina/log;
+import ballerina/lang.runtime as runtime;
 import ballerina/uuid;
 
 configurable int listenerPort = 9090;
 configurable string serviceName = "securescan-api";
+
+function init() returns error? {
+    check validateAsyncConfiguration(maxActiveScansPerOwner,
+            reconciliationIntervalSeconds);
+    check validateDispatchLease(dispatchLeaseSeconds, scannerResponseTimeout);
+    if persistenceEnabled {
+        _ = start reconcileActiveScansInBackground();
+    }
+}
+
+function reconcileActiveScansInBackground() {
+    while persistenceEnabled {
+        runtime:sleep(<decimal>reconciliationIntervalSeconds);
+        PersistedScanJob[]|error activeJobs = loadActiveScanJobs(
+                developmentOwnerSubject, maxActiveScansPerOwner);
+        if activeJobs is error {
+            log:printError("Unable to load scans for background reconciliation",
+                    activeJobs);
+            continue;
+        }
+        foreach PersistedScanJob job in activeJobs {
+            string requestId = uuid:createType4AsString();
+            _ = getPersistedScanStatus(job.id, requestId);
+        }
+    }
+}
 
 service / on new http:Listener(listenerPort) {
     resource function get health() returns HealthOk {
@@ -67,7 +94,7 @@ service / on new http:Listener(listenerPort) {
         }
 
         ScannerCreateResponse|ScannerFailure scannerResult =
-            createScannerJob(request, requestId);
+            createScannerJob(request, requestId, publicScanId);
         if scannerResult is ScannerFailure {
             log:printWarn("Scanner create request failed",
                     requestId = requestId, failureCode = scannerResult.code);
@@ -203,10 +230,11 @@ function dispatchQueuedScan(string publicScanId, CreateScanRequest request,
         return;
     }
     ScannerCreateResponse|ScannerFailure scannerResult =
-        createScannerJob(request, requestId);
+        createScannerJob(request, requestId, publicScanId);
     if scannerResult is ScannerFailure {
         // Availability failures remain QUEUED so a later detail poll can retry.
-        if scannerResult.code == SCANNER_UNAVAILABLE {
+        if scannerResult.code == SCANNER_UNAVAILABLE ||
+                scannerResult.code == JOB_LIMIT_REACHED {
             log:printWarn("Scanner dispatch deferred for recovery",
                     requestId = requestId, scanId = publicScanId);
             return;
@@ -230,6 +258,16 @@ function validateDispatchLease(int leaseSeconds, decimal responseTimeout)
         returns error? {
     if <decimal>leaseSeconds <= responseTimeout {
         return error("dispatch lease must exceed scanner response timeout");
+    }
+}
+
+function validateAsyncConfiguration(int activeLimit, int intervalSeconds)
+        returns error? {
+    if activeLimit < 1 {
+        return error("maxActiveScansPerOwner must be greater than zero");
+    }
+    if intervalSeconds < 1 {
+        return error("reconciliationIntervalSeconds must be greater than zero");
     }
 }
 
@@ -302,6 +340,16 @@ function getPersistedScanStatus(string scanId, string requestId)
                 }
                 return persistedScanResponse(failedJob, [], requestId);
             }
+            if !scannerResponseMatchesJob(job, scannerId, scannerResult) {
+                ScanUpdateOutcome|error failed =
+                    markScanSynchronizationFailed(job.id, INTERNAL_ERROR);
+                if failed is error {
+                    return persistenceUnavailable(requestId);
+                }
+                log:printError("Scanner response did not match persisted job",
+                        requestId = requestId, scanId = scanId);
+                return internalServerError(requestId);
+            }
             error? syncError = synchronizeScanJob(job, scannerResult);
             if syncError is error {
                 log:printError("Unable to synchronize persisted scan", syncError,
@@ -334,6 +382,21 @@ function getPersistedScanStatus(string scanId, string requestId)
             };
     }
     return persistedScanResponse(job, ports, requestId);
+}
+
+function scannerResponseMatchesJob(PersistedScanJob job, string scannerId,
+        ScannerStatusResponse scanner) returns boolean {
+    if scanner.id != scannerId || scanner.target != job.target ||
+            scanner.startPort != job.startPort || scanner.endPort != job.endPort {
+        return false;
+    }
+    ScannerResult? possibleResult = scanner.result;
+    if possibleResult is ScannerResult {
+        return possibleResult.target == job.target &&
+            possibleResult.startPort == job.startPort &&
+            possibleResult.endPort == job.endPort;
+    }
+    return true;
 }
 
 function persistedScanResponse(PersistedScanJob job, ScanPortResult[] ports,
@@ -467,7 +530,7 @@ function validateCreateScanRequest(CreateScanRequest request, string requestId)
 }
 
 function mapCreateFailure(ScannerFailure failure, string requestId)
-        returns BadRequestError|ServiceUnavailableError|
+        returns BadRequestError|ServiceUnavailableError|TooManyRequestsError|
         InternalServerErrorResponse {
     if failure.code == BLOCKED_TARGET {
         return badRequest(BLOCKED_TARGET, "The target is not permitted", {},
@@ -493,6 +556,9 @@ function mapCreateFailure(ScannerFailure failure, string requestId)
             }
         };
         return unavailable;
+    }
+    if failure.code == JOB_LIMIT_REACHED {
+        return jobLimitReached(requestId);
     }
     InternalServerErrorResponse internalError = {
         headers: {requestId: requestId},

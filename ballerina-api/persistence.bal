@@ -11,6 +11,7 @@ configurable string databasePassword = "securescan_dev_only";
 configurable string developmentOwnerSubject = "development-user";
 configurable int maxActiveScansPerOwner = 5;
 configurable int dispatchLeaseSeconds = 15;
+configurable int reconciliationIntervalSeconds = 5;
 
 final postgresql:Client? databaseClient = persistenceEnabled ? check new (
         host = databaseHost,
@@ -179,6 +180,31 @@ function loadScanJob(string id, string ownerSubject)
     PersistedScanJob[] rows = check from PersistedScanJob row in rowStream
         select row;
     return rows.length() == 0 ? () : rows[0];
+}
+
+function loadActiveScanJobs(string ownerSubject, int pageSize)
+        returns PersistedScanJob[]|error {
+    if pageSize < 1 {
+        return error("active scan reconciliation limit must be positive");
+    }
+    postgresql:Client db = check getDatabaseClient();
+    stream<PersistedScanJob, sql:Error?> rowStream = db->query(`
+        SELECT id::text AS "id",
+               scanner_scan_id::text AS "scannerScanId",
+               target AS "target", start_port AS "startPort",
+               end_port AS "endPort", status AS "status",
+               failure_code AS "failureCode",
+               duration_nanos AS "durationNanos",
+               to_char(created_at AT TIME ZONE 'UTC',
+                       'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "createdAt",
+               to_char(updated_at AT TIME ZONE 'UTC',
+                       'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt"
+          FROM scan_jobs
+         WHERE owner_subject = ${ownerSubject}
+           AND status IN ('QUEUED', 'RUNNING')
+         ORDER BY created_at, id
+         LIMIT ${pageSize}`);
+    return check from PersistedScanJob row in rowStream select row;
 }
 
 function synchronizeScanJob(PersistedScanJob job, ScannerStatusResponse scanner)

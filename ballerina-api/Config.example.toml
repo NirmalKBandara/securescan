@@ -16,3 +16,4 @@ databasePassword = "securescan_dev_only"
 developmentOwnerSubject = "development-user"
 maxActiveScansPerOwner = 5
 dispatchLeaseSeconds = 15
+reconciliationIntervalSeconds = 5

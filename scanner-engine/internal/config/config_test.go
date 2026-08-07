@@ -11,6 +11,8 @@ func TestLoadUsesSafeDefaults(t *testing.T) {
 	t.Setenv("MAX_CONCURRENT_PORTS", "")
 	t.Setenv("SCAN_TIMEOUT_MS", "")
 	t.Setenv("ALLOWED_TARGETS", "")
+	t.Setenv("MAX_ACTIVE_SCANS", "")
+	t.Setenv("MAX_RETAINED_JOBS", "")
 
 	config, err := Load()
 	if err != nil {
@@ -35,6 +37,12 @@ func TestLoadUsesSafeDefaults(t *testing.T) {
 
 	if config.ScanTimeout != time.Duration(defaultScanTimeoutMS)*time.Millisecond {
 		t.Fatalf("unexpected scan timeout: %s", config.ScanTimeout)
+	}
+	if config.MaxActiveScans != defaultMaxActiveScans {
+		t.Fatalf("expected max active scans %d, got %d", defaultMaxActiveScans, config.MaxActiveScans)
+	}
+	if config.MaxRetainedJobs != defaultMaxRetainedJobs {
+		t.Fatalf("expected max retained jobs %d, got %d", defaultMaxRetainedJobs, config.MaxRetainedJobs)
 	}
 }
 
@@ -64,6 +72,16 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 			key:   "SCAN_TIMEOUT_MS",
 			value: "nope",
 		},
+		{
+			name:  "invalid active scan limit",
+			key:   "MAX_ACTIVE_SCANS",
+			value: "0",
+		},
+		{
+			name:  "invalid retained job limit",
+			key:   "MAX_RETAINED_JOBS",
+			value: "-1",
+		},
 	}
 
 	for _, test := range tests {
@@ -73,6 +91,8 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 			t.Setenv("MAX_CONCURRENT_PORTS", "")
 			t.Setenv("SCAN_TIMEOUT_MS", "")
 			t.Setenv("ALLOWED_TARGETS", "")
+			t.Setenv("MAX_ACTIVE_SCANS", "")
+			t.Setenv("MAX_RETAINED_JOBS", "")
 			t.Setenv(test.key, test.value)
 
 			_, err := Load()
@@ -89,6 +109,8 @@ func TestLoadReadsAllowlist(t *testing.T) {
 	t.Setenv("MAX_CONCURRENT_PORTS", "")
 	t.Setenv("SCAN_TIMEOUT_MS", "")
 	t.Setenv("ALLOWED_TARGETS", " Scanme.Example, 8.8.8.8 ")
+	t.Setenv("MAX_ACTIVE_SCANS", "")
+	t.Setenv("MAX_RETAINED_JOBS", "")
 
 	config, err := Load()
 	if err != nil {

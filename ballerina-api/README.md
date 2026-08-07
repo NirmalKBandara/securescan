@@ -27,7 +27,9 @@ management are integrated.
 - Transactional, retry-safe result synchronization before a job becomes terminal
 - Owner-scoped detail/result reads and bounded keyset history queries
 - Durable `QUEUED` responses before the Go scanner is contacted
-- Background scanner submission with polling-driven recovery after outages/restarts
+- Background scanner submission with periodic and polling-driven recovery
+- Idempotent Go submission using the durable public scan ID
+- Strict scanner ID, target, port-range, and result correlation checks
 - Owner-level active-job admission limits
 - `GET /api/v1/scans` history with bounded keyset pagination
 
@@ -61,6 +63,7 @@ databasePassword = "securescan_dev_only"
 developmentOwnerSubject = "development-user"
 maxActiveScansPerOwner = 5
 dispatchLeaseSeconds = 15
+reconciliationIntervalSeconds = 5
 ```
 
 Primitive configuration values can also be overridden using environment
@@ -132,25 +135,28 @@ This ID is owned by Ballerina and remains stable independently of the internal
 Go scanner ID.
 
 Creation returns `202 Accepted` with `status: "queued"` immediately after the
-job commits to PostgreSQL. Go submission continues asynchronously. Polling the
-detail endpoint synchronizes running/completed results and retries a queued job
-that could not be submitted while the scanner was unavailable. A durable,
-expiring database lease prevents the background worker and concurrent polls
-from submitting the same queued row simultaneously. Validation or
-policy failures from Go become durable `FAILED`/`BLOCKED` jobs; transient
-scanner unavailability leaves the job queued for recovery. A running scanner
-job that permanently disappears becomes `FAILED`.
+job commits to PostgreSQL. Go submission continues asynchronously. A periodic
+reconciler and detail polling synchronize running/completed results and retry a
+queued job that could not be submitted while the scanner was unavailable. A
+durable, expiring database lease prevents background reconciliation and
+concurrent polls from dispatching the same queued row simultaneously. The
+public scan UUID is sent to Go as `X-Idempotency-Key`, so retrying an ambiguous
+submission returns the original scanner job instead of starting another scan.
+Validation or policy failures from Go become durable `FAILED`/`BLOCKED` jobs;
+transient scanner unavailability or capacity pressure leaves the job queued for
+recovery. A running scanner job that permanently disappears becomes `FAILED`.
 
 At most `maxActiveScansPerOwner` `QUEUED`/`RUNNING` jobs may exist for one
 owner. Admission is serialized in PostgreSQL, and excess requests return `429`
 with `JOB_LIMIT_REACHED` without creating a row.
 
-`dispatchLeaseSeconds` must remain longer than `scannerResponseTimeout`. If an
-API process stops while holding a lease, a later poll can recover the queued
-row after expiry. Scanner submission is an external side effect, so a process
-failure after Go accepts a job but before its ID is saved still has an
-at-least-once recovery boundary. Closing that crash window requires a future
-idempotency key in the Go API.
+`dispatchLeaseSeconds` must remain longer than `scannerResponseTimeout`, and
+`reconciliationIntervalSeconds` must be positive. Invalid asynchronous
+configuration stops the API during startup rather than accepting jobs it cannot
+dispatch. If an API process stops while holding a lease, periodic reconciliation
+or a later poll recovers the queued row after expiry. Scanner responses must
+match the stored scanner ID, target, and port range before any lifecycle or
+result data is committed.
 
 ## Scan History
 

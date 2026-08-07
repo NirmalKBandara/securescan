@@ -9,9 +9,11 @@ import (
 )
 
 const (
-	defaultMaxPorts       = 1000
-	defaultMaxConcurrency = 100
-	defaultScanTimeoutMS  = 1000
+	defaultMaxPorts        = 1000
+	defaultMaxConcurrency  = 100
+	defaultScanTimeoutMS   = 1000
+	defaultMaxActiveScans  = 10
+	defaultMaxRetainedJobs = 1000
 )
 
 type Config struct {
@@ -20,6 +22,8 @@ type Config struct {
 	MaxConcurrentPorts  int
 	ScanTimeout         time.Duration
 	AllowedTargets      []string
+	MaxActiveScans      int
+	MaxRetainedJobs     int
 }
 
 func Load() (Config, error) {
@@ -52,12 +56,30 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	maxActiveScans, err := readPositiveInt(
+		"MAX_ACTIVE_SCANS",
+		defaultMaxActiveScans,
+	)
+	if err != nil {
+		return Config{}, err
+	}
+
+	maxRetainedJobs, err := readPositiveInt(
+		"MAX_RETAINED_JOBS",
+		defaultMaxRetainedJobs,
+	)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		AllowPrivateTargets: allowPrivate,
 		MaxPortsPerScan:     maxPorts,
 		MaxConcurrentPorts:  maxConcurrency,
 		ScanTimeout:         time.Duration(timeoutMS) * time.Millisecond,
 		AllowedTargets:      readCSV("ALLOWED_TARGETS"),
+		MaxActiveScans:      maxActiveScans,
+		MaxRetainedJobs:     maxRetainedJobs,
 	}, nil
 }
 

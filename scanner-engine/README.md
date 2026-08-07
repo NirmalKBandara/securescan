@@ -24,6 +24,8 @@ connect scanning within SecureScan.
 - Added an internal HTTP service on port 8081
 - Added health, scan creation and scan status endpoints
 - Added UUID-based asynchronous scan jobs
+- Added idempotent job creation and global active-job admission limits
+- Bounded retained terminal jobs to prevent unbounded in-memory growth
 - Added structured JSON responses and request logging
 
 ## Package Structure
@@ -105,12 +107,20 @@ More detail is available in
 ALLOW_PRIVATE_TARGETS=false
 MAX_PORTS_PER_SCAN=1000
 MAX_CONCURRENT_PORTS=100
+MAX_ACTIVE_SCANS=10
+MAX_RETAINED_JOBS=1000
 SCAN_TIMEOUT_MS=1000
 ALLOWED_TARGETS=
 ```
 
 `ALLOWED_TARGETS` is an optional comma-separated allowlist. When it is set,
 only exact matching hostnames or IP addresses are accepted.
+
+`MAX_ACTIVE_SCANS` is the process-wide maximum number of accepted/running scan
+jobs. Additional new jobs receive `429 JOB_LIMIT_REACHED`; retries of an
+existing idempotent request remain available. `MAX_RETAINED_JOBS` bounds the
+number of completed/failed jobs retained for status lookup. The oldest terminal
+jobs and their idempotency mappings are evicted after that limit is exceeded.
 
 ## How TCP Connect Scanning Works
 
@@ -157,6 +167,12 @@ POST /internal/scans
 GET  /internal/scans/{id}
 ```
 
+Callers that may retry creation should send the durable public scan UUID as
+`X-Idempotency-Key`. Repeating the same key and target/port request returns the
+same scanner job without starting another scan. Reusing a key for different
+scan parameters returns `409 IDEMPOTENCY_CONFLICT`. Omitting the header preserves
+the original behavior and creates a new scanner job.
+
 Full request, response and error documentation is available in
 [`scanner-service-api.md`](../docs/api/scanner-service-api.md).
 
@@ -184,5 +200,6 @@ go test ./...
 ## Current Limitations
 
 * Open and closed are the only displayed states
-* Scan jobs are kept in memory and are lost when the service restarts
+* Scan jobs are kept in memory, bounded by active and terminal-job limits, and
+  are lost when the service restarts
 * Authentication and authorization will be handled by later platform layers

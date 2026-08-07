@@ -27,15 +27,18 @@ type errorResponse struct {
 }
 
 const (
-	errorCodeBlockedTarget    = "BLOCKED_TARGET"
-	errorCodeInternal         = "INTERNAL_ERROR"
-	errorCodeInvalidPort      = "INVALID_PORT_RANGE"
-	errorCodeInvalidRequest   = "INVALID_REQUEST"
-	errorCodeInvalidScanID    = "INVALID_SCAN_ID"
-	errorCodeInvalidTarget    = "INVALID_TARGET"
-	errorCodeMethodNotAllowed = "METHOD_NOT_ALLOWED"
-	errorCodeScanNotFound     = "SCAN_NOT_FOUND"
-	errorCodeUnsupportedType  = "UNSUPPORTED_MEDIA_TYPE"
+	errorCodeBlockedTarget         = "BLOCKED_TARGET"
+	errorCodeInternal              = "INTERNAL_ERROR"
+	errorCodeInvalidPort           = "INVALID_PORT_RANGE"
+	errorCodeInvalidRequest        = "INVALID_REQUEST"
+	errorCodeInvalidScanID         = "INVALID_SCAN_ID"
+	errorCodeInvalidTarget         = "INVALID_TARGET"
+	errorCodeMethodNotAllowed      = "METHOD_NOT_ALLOWED"
+	errorCodeScanNotFound          = "SCAN_NOT_FOUND"
+	errorCodeUnsupportedType       = "UNSUPPORTED_MEDIA_TYPE"
+	errorCodeInvalidIdempotencyKey = "INVALID_IDEMPOTENCY_KEY"
+	errorCodeIdempotencyConflict   = "IDEMPOTENCY_CONFLICT"
+	errorCodeJobLimitReached       = "JOB_LIMIT_REACHED"
 )
 
 func main() {

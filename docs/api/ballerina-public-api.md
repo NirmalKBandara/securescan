@@ -176,3 +176,19 @@ Permanent validation/policy failures become terminal `FAILED`/`BLOCKED`
 records, and a correlated scanner job that later disappears becomes `FAILED`.
 Scanner IDs, targets, port ranges, and completed result ranges must match the
 durable public job before synchronization is accepted.
+
+## Audit guarantee
+
+Durable scan creation and every applied lifecycle transition append an audit
+record atomically with the corresponding job/result write. The event sequence
+for a successful scan is `SCAN_REQUESTED`, `SCAN_STARTED`, and
+`SCAN_COMPLETED`; a policy-blocked scan records `SCAN_REQUESTED` and
+`SCAN_BLOCKED`; other terminal failures record `SCAN_FAILED` after the last
+applied state.
+
+Audit rows correlate the owner/user subject, service actor, `X-Request-ID`, and
+public scan UUID without exposing them through this public API. Metadata has a
+database-enforced per-action allowlist and never stores targets, resolved
+addresses, raw diagnostics, request bodies, headers, credentials, or tokens.
+Conditional state updates plus a unique lifecycle-event index make retries
+idempotent. An audit-write failure rolls back the paired lifecycle mutation.

@@ -40,7 +40,8 @@ BEGIN
         'audit_logs_owner_occurred_idx',
         'audit_logs_request_idx',
         'audit_logs_scan_job_idx',
-        'audit_logs_allowed_target_idx'
+        'audit_logs_allowed_target_idx',
+        'audit_logs_scan_lifecycle_uq'
     ] LOOP
         IF to_regclass('public.' || expected_index) IS NULL THEN
             RAISE EXCEPTION 'missing expected index: %', expected_index;
@@ -87,7 +88,9 @@ BEGIN
         'audit_logs_owner_ck',
         'audit_logs_action_ck',
         'audit_logs_outcome_ck',
-        'audit_logs_metadata_object_ck'
+        'audit_logs_metadata_object_ck',
+        'audit_logs_scan_event_shape_ck',
+        'audit_logs_scan_metadata_ck'
     ] LOOP
         IF NOT EXISTS (
             SELECT 1
@@ -106,8 +109,8 @@ $verification$;
 
 DO $verification$
 BEGIN
-    IF (SELECT count(*) FROM schema_migrations) <> 3 THEN
-        RAISE EXCEPTION 'expected exactly three applied migrations';
+    IF (SELECT count(*) FROM schema_migrations) <> 4 THEN
+        RAISE EXCEPTION 'expected exactly four applied migrations';
     END IF;
 
     IF (SELECT count(*) FROM allowed_targets
@@ -336,6 +339,180 @@ BEGIN
     ] THEN
         RAISE EXCEPTION 'scan history tie-break order is incorrect: %',
             ordered_history;
+    END IF;
+END
+$verification$;
+
+ROLLBACK;
+
+-- Day 15 acceptance: successful and blocked jobs retain a complete,
+-- constrained audit trail. All fixtures are rolled back.
+BEGIN;
+
+INSERT INTO scan_jobs (
+    id, scanner_scan_id, owner_subject, target, start_port, end_port,
+    status, failure_code, duration_nanos, created_at, updated_at, started_at,
+    finished_at
+) VALUES (
+    '20000000-0000-4000-8000-000000000030',
+    '30000000-0000-4000-8000-000000000030',
+    'test:day-15-owner', 'success.dev.example', 80, 81,
+    'COMPLETED', NULL, 2000000,
+    '2026-08-06T10:00:00Z', '2026-08-06T10:00:02Z',
+    '2026-08-06T10:00:01Z', '2026-08-06T10:00:02Z'
+), (
+    '20000000-0000-4000-8000-000000000031', NULL,
+    'test:day-15-owner', 'blocked.dev.example', 443, 443,
+    'BLOCKED', 'BLOCKED_TARGET', NULL,
+    '2026-08-06T11:00:00Z', '2026-08-06T11:00:01Z',
+    NULL, '2026-08-06T11:00:01Z'
+);
+
+INSERT INTO scan_results (scan_job_id, address, port, state, observed_at)
+VALUES
+    ('20000000-0000-4000-8000-000000000030', '192.0.2.20', 80,
+     'OPEN', '2026-08-06T10:00:02Z'),
+    ('20000000-0000-4000-8000-000000000030', '192.0.2.20', 81,
+     'CLOSED', '2026-08-06T10:00:02Z');
+
+INSERT INTO audit_logs (
+    id, occurred_at, actor_type, actor_subject, owner_subject, action,
+    outcome, request_id, scan_job_id, metadata
+) VALUES
+    ('40000000-0000-4000-8000-000000000030', '2026-08-06T10:00:00Z',
+     'USER', 'test:day-15-owner', 'test:day-15-owner', 'SCAN_REQUESTED',
+     'SUCCESS', '50000000-0000-4000-8000-000000000030',
+     '20000000-0000-4000-8000-000000000030',
+     '{"startPort":80,"endPort":81}'),
+    ('40000000-0000-4000-8000-000000000031', '2026-08-06T10:00:01Z',
+     'SERVICE', 'securescan-api', 'test:day-15-owner', 'SCAN_STARTED',
+     'SUCCESS', '50000000-0000-4000-8000-000000000030',
+     '20000000-0000-4000-8000-000000000030', '{}'),
+    ('40000000-0000-4000-8000-000000000032', '2026-08-06T10:00:02Z',
+     'SERVICE', 'securescan-api', 'test:day-15-owner', 'SCAN_COMPLETED',
+     'SUCCESS', '50000000-0000-4000-8000-000000000032',
+     '20000000-0000-4000-8000-000000000030',
+     '{"resultCount":2,"durationNanos":2000000}'),
+    ('40000000-0000-4000-8000-000000000033', '2026-08-06T11:00:00Z',
+     'USER', 'test:day-15-owner', 'test:day-15-owner', 'SCAN_REQUESTED',
+     'SUCCESS', '50000000-0000-4000-8000-000000000033',
+     '20000000-0000-4000-8000-000000000031',
+     '{"startPort":443,"endPort":443}'),
+    ('40000000-0000-4000-8000-000000000034', '2026-08-06T11:00:01Z',
+     'SERVICE', 'securescan-api', 'test:day-15-owner', 'SCAN_BLOCKED',
+     'DENIED', '50000000-0000-4000-8000-000000000033',
+     '20000000-0000-4000-8000-000000000031',
+     '{"failureCode":"BLOCKED_TARGET"}');
+
+DO $verification$
+DECLARE
+    success_actions text[];
+    blocked_actions text[];
+BEGIN
+    SELECT array_agg(action ORDER BY occurred_at)
+      INTO success_actions
+      FROM audit_logs
+     WHERE scan_job_id = '20000000-0000-4000-8000-000000000030';
+    IF success_actions <> ARRAY[
+        'SCAN_REQUESTED', 'SCAN_STARTED', 'SCAN_COMPLETED'
+    ] THEN
+        RAISE EXCEPTION 'successful audit trail is incomplete: %',
+            success_actions;
+    END IF;
+
+    SELECT array_agg(action ORDER BY occurred_at)
+      INTO blocked_actions
+      FROM audit_logs
+     WHERE scan_job_id = '20000000-0000-4000-8000-000000000031';
+    IF blocked_actions <> ARRAY['SCAN_REQUESTED', 'SCAN_BLOCKED'] THEN
+        RAISE EXCEPTION 'blocked audit trail is incomplete: %', blocked_actions;
+    END IF;
+
+    IF (SELECT count(*) FROM scan_results
+        WHERE scan_job_id = '20000000-0000-4000-8000-000000000030') <> 2
+       OR EXISTS (
+           SELECT 1 FROM scan_results
+           WHERE scan_job_id = '20000000-0000-4000-8000-000000000031'
+       ) THEN
+        RAISE EXCEPTION 'successful or blocked result records are incorrect';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM audit_logs
+         WHERE scan_job_id IN (
+             '20000000-0000-4000-8000-000000000030',
+             '20000000-0000-4000-8000-000000000031'
+         )
+           AND (request_id IS NULL OR owner_subject IS NULL
+                OR actor_subject IS NULL OR occurred_at IS NULL
+                OR metadata::text ~* '(authorization|bearer|credential|cookie|password|secret|token)')
+    ) THEN
+        RAISE EXCEPTION 'audit identity fields are missing or metadata is unsafe';
+    END IF;
+END
+$verification$;
+
+-- A duplicate terminal event is rejected, proving lifecycle retries cannot
+-- append a second audit row.
+DO $verification$
+BEGIN
+    BEGIN
+        INSERT INTO audit_logs (
+            id, actor_type, actor_subject, owner_subject, action, outcome,
+            request_id, scan_job_id, metadata
+        ) VALUES (
+            '40000000-0000-4000-8000-000000000035',
+            'SERVICE', 'securescan-api', 'test:day-15-owner',
+            'SCAN_COMPLETED', 'SUCCESS',
+            '50000000-0000-4000-8000-000000000035',
+            '20000000-0000-4000-8000-000000000030',
+            '{"resultCount":2,"durationNanos":2000000}'
+        );
+        RAISE EXCEPTION 'duplicate lifecycle audit event was accepted';
+    EXCEPTION
+        WHEN unique_violation THEN NULL;
+    END;
+END
+$verification$;
+
+-- An invalid audit insert rolls back its paired lifecycle update.
+INSERT INTO scan_jobs (
+    id, scanner_scan_id, owner_subject, target, start_port, end_port,
+    status, created_at, updated_at, started_at
+) VALUES (
+    '20000000-0000-4000-8000-000000000032',
+    '30000000-0000-4000-8000-000000000032',
+    'test:day-15-owner', 'failure.dev.example', 22, 22, 'RUNNING',
+    '2026-08-06T12:00:00Z', '2026-08-06T12:00:01Z',
+    '2026-08-06T12:00:01Z'
+);
+
+DO $verification$
+BEGIN
+    BEGIN
+        UPDATE scan_jobs
+           SET status = 'FAILED', failure_code = 'SCANNER_FAILED',
+               finished_at = '2026-08-06T12:00:02Z',
+               updated_at = '2026-08-06T12:00:02Z'
+         WHERE id = '20000000-0000-4000-8000-000000000032';
+        INSERT INTO audit_logs (
+            id, actor_type, actor_subject, owner_subject, action, outcome,
+            request_id, scan_job_id, metadata
+        ) VALUES (
+            '40000000-0000-4000-8000-000000000036',
+            'SERVICE', 'securescan-api', 'test:day-15-owner',
+            'SCAN_FAILED', 'FAILURE',
+            '50000000-0000-4000-8000-000000000036',
+            '20000000-0000-4000-8000-000000000032',
+            '{"failureCode":"SCANNER_FAILED","token":"forbidden"}'
+        );
+    EXCEPTION
+        WHEN check_violation THEN NULL;
+    END;
+
+    IF (SELECT status FROM scan_jobs
+        WHERE id = '20000000-0000-4000-8000-000000000032') <> 'RUNNING' THEN
+        RAISE EXCEPTION 'audit failure did not roll back lifecycle update';
     END IF;
 END
 $verification$;

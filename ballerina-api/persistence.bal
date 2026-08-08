@@ -1,4 +1,5 @@
 import ballerina/sql;
+import ballerina/uuid;
 import ballerinax/postgresql;
 import ballerinax/postgresql.driver as _;
 
@@ -57,6 +58,13 @@ type LockedScanJob record {|
 
 type ScanUpdateOutcome "APPLIED"|"UNCHANGED";
 
+type AuditActorType "USER"|"SERVICE";
+
+type AuditAction "SCAN_REQUESTED"|"SCAN_BLOCKED"|"SCAN_STARTED"|
+    "SCAN_COMPLETED"|"SCAN_FAILED";
+
+type AuditOutcome "SUCCESS"|"DENIED"|"FAILURE";
+
 type QueuedScanInsertOutcome "CREATED"|"LIMIT_REACHED";
 
 type ActiveScanCount record {|
@@ -67,7 +75,7 @@ type AdvisoryLockResult record {|
     string locked;
 |};
 
-function insertQueuedScan(string id, CreateScanRequest request)
+function insertQueuedScan(string id, CreateScanRequest request, string requestId)
         returns QueuedScanInsertOutcome|error {
     postgresql:Client db = check getDatabaseClient();
     string target = request.target.trim();
@@ -94,6 +102,12 @@ function insertQueuedScan(string id, CreateScanRequest request)
                     (id, owner_subject, target, start_port, end_port, status)
                 VALUES (CAST(${id} AS uuid), ${developmentOwnerSubject}, ${target},
                         ${request.startPort}, ${request.endPort}, 'QUEUED')`);
+            json metadata = {
+                startPort: request.startPort,
+                endPort: request.endPort
+            };
+            check insertAuditEvent(db, "USER", developmentOwnerSubject,
+                    "SCAN_REQUESTED", "SUCCESS", requestId, id, metadata);
         }
         check commit;
         if !admitted {
@@ -119,44 +133,77 @@ function claimScanDispatch(string id, string leaseToken)
     return scanUpdateOutcome(update);
 }
 
-function markScanDispatched(string id, string scannerScanId, string leaseToken)
+function markScanDispatched(string id, string scannerScanId, string leaseToken,
+        string requestId)
         returns ScanUpdateOutcome|error {
     postgresql:Client db = check getDatabaseClient();
-    sql:ExecutionResult update = check db->execute(`
-        UPDATE scan_jobs
-           SET scanner_scan_id = CAST(${scannerScanId} AS uuid),
-               status = 'RUNNING', started_at = CURRENT_TIMESTAMP,
-               dispatch_lease_token = NULL, dispatch_lease_expires_at = NULL,
-               updated_at = CURRENT_TIMESTAMP
-         WHERE id = CAST(${id} AS uuid) AND status = 'QUEUED'
-           AND dispatch_lease_token = CAST(${leaseToken} AS uuid)`);
-    return scanUpdateOutcome(update);
+    ScanUpdateOutcome outcome = "UNCHANGED";
+    transaction {
+        sql:ExecutionResult update = check db->execute(`
+            UPDATE scan_jobs
+               SET scanner_scan_id = CAST(${scannerScanId} AS uuid),
+                   status = 'RUNNING', started_at = CURRENT_TIMESTAMP,
+                   dispatch_lease_token = NULL, dispatch_lease_expires_at = NULL,
+                   updated_at = CURRENT_TIMESTAMP
+             WHERE id = CAST(${id} AS uuid) AND status = 'QUEUED'
+               AND dispatch_lease_token = CAST(${leaseToken} AS uuid)`);
+        outcome = check scanUpdateOutcome(update);
+        if outcome == "APPLIED" {
+            check insertAuditEvent(db, "SERVICE", serviceName,
+                    "SCAN_STARTED", "SUCCESS", requestId, id, {});
+        }
+        check commit;
+    }
+    return outcome;
 }
 
 function markScanDispatchFailed(string id, string failureCode,
-        boolean blocked, string leaseToken) returns ScanUpdateOutcome|error {
-    postgresql:Client db = check getDatabaseClient();
-    string status = blocked ? "BLOCKED" : "FAILED";
-    sql:ExecutionResult update = check db->execute(`
-        UPDATE scan_jobs
-           SET status = ${status}, failure_code = ${failureCode},
-               dispatch_lease_token = NULL, dispatch_lease_expires_at = NULL,
-               finished_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-         WHERE id = CAST(${id} AS uuid) AND status = 'QUEUED'
-           AND dispatch_lease_token = CAST(${leaseToken} AS uuid)`);
-    return scanUpdateOutcome(update);
-}
-
-function markScanSynchronizationFailed(string id, string failureCode)
+        boolean blocked, string leaseToken, string requestId)
         returns ScanUpdateOutcome|error {
     postgresql:Client db = check getDatabaseClient();
-    sql:ExecutionResult update = check db->execute(`
-        UPDATE scan_jobs
-           SET status = 'FAILED', failure_code = ${failureCode},
-               finished_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-         WHERE id = CAST(${id} AS uuid)
-           AND status IN ('QUEUED', 'RUNNING')`);
-    return scanUpdateOutcome(update);
+    string status = blocked ? "BLOCKED" : "FAILED";
+    ScanUpdateOutcome updateOutcome = "UNCHANGED";
+    transaction {
+        sql:ExecutionResult update = check db->execute(`
+            UPDATE scan_jobs
+               SET status = ${status}, failure_code = ${failureCode},
+                   dispatch_lease_token = NULL, dispatch_lease_expires_at = NULL,
+                   finished_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+             WHERE id = CAST(${id} AS uuid) AND status = 'QUEUED'
+               AND dispatch_lease_token = CAST(${leaseToken} AS uuid)`);
+        updateOutcome = check scanUpdateOutcome(update);
+        if updateOutcome == "APPLIED" {
+            json metadata = {failureCode: failureCode};
+            check insertAuditEvent(db, "SERVICE", serviceName,
+                    blocked ? "SCAN_BLOCKED" : "SCAN_FAILED",
+                    blocked ? "DENIED" : "FAILURE", requestId, id, metadata);
+        }
+        check commit;
+    }
+    return updateOutcome;
+}
+
+function markScanSynchronizationFailed(string id, string failureCode,
+        string requestId)
+        returns ScanUpdateOutcome|error {
+    postgresql:Client db = check getDatabaseClient();
+    ScanUpdateOutcome outcome = "UNCHANGED";
+    transaction {
+        sql:ExecutionResult update = check db->execute(`
+            UPDATE scan_jobs
+               SET status = 'FAILED', failure_code = ${failureCode},
+                   finished_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+             WHERE id = CAST(${id} AS uuid)
+               AND status IN ('QUEUED', 'RUNNING')`);
+        outcome = check scanUpdateOutcome(update);
+        if outcome == "APPLIED" {
+            json metadata = {failureCode: failureCode};
+            check insertAuditEvent(db, "SERVICE", serviceName,
+                    "SCAN_FAILED", "FAILURE", requestId, id, metadata);
+        }
+        check commit;
+    }
+    return outcome;
 }
 
 function loadScanJob(string id, string ownerSubject)
@@ -207,19 +254,16 @@ function loadActiveScanJobs(string ownerSubject, int pageSize)
     return check from PersistedScanJob row in rowStream select row;
 }
 
-function synchronizeScanJob(PersistedScanJob job, ScannerStatusResponse scanner)
+function synchronizeScanJob(PersistedScanJob job, ScannerStatusResponse scanner,
+        string requestId)
         returns error? {
     postgresql:Client db = check getDatabaseClient();
     if scanner.status == "accepted" || scanner.status == "running" {
         return;
     }
     if scanner.status == "failed" {
-        sql:ExecutionResult update = check db->execute(`
-            UPDATE scan_jobs
-               SET status = 'FAILED', failure_code = 'SCANNER_FAILED',
-                   finished_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-             WHERE id = CAST(${job.id} AS uuid) AND status IN ('QUEUED', 'RUNNING')`);
-        _ = scanUpdateOutcome(update);
+        _ = check markScanSynchronizationFailed(job.id, "SCANNER_FAILED",
+                requestId);
         return;
     }
 
@@ -259,9 +303,30 @@ function synchronizeScanJob(PersistedScanJob job, ScannerStatusResponse scanner)
                    AND status IN ('QUEUED', 'RUNNING')`);
             check requireAppliedUpdate(completion,
                     "active scan could not be marked completed");
+            json metadata = {
+                resultCount: result.results.length(),
+                durationNanos: result.duration
+            };
+            check insertAuditEvent(db, "SERVICE", serviceName,
+                    "SCAN_COMPLETED", "SUCCESS", requestId, job.id, metadata);
         }
         check commit;
     }
+}
+
+function insertAuditEvent(postgresql:Client db, AuditActorType actorType,
+        string actorSubject, AuditAction action, AuditOutcome outcome,
+        string requestId, string scanId, json metadata) returns error? {
+    string eventId = uuid:createType4AsString();
+    string metadataJson = metadata.toJsonString();
+    _ = check db->execute(`
+        INSERT INTO audit_logs
+            (id, actor_type, actor_subject, owner_subject, action, outcome,
+             request_id, scan_job_id, metadata)
+        VALUES (CAST(${eventId} AS uuid), ${actorType}, ${actorSubject},
+                ${developmentOwnerSubject}, ${action}, ${outcome},
+                CAST(${requestId} AS uuid), CAST(${scanId} AS uuid),
+                CAST(${metadataJson} AS jsonb))`);
 }
 
 function loadScanResults(string id, string ownerSubject)
@@ -315,14 +380,24 @@ function validateHistoryLimit(int pageSize) returns error? {
 }
 
 function scanUpdateOutcome(sql:ExecutionResult result)
-        returns ScanUpdateOutcome {
+        returns ScanUpdateOutcome|error {
     int? affectedRows = result.affectedRowCount;
-    return affectedRows is int && affectedRows == 0 ? "UNCHANGED" : "APPLIED";
+    if affectedRows is () {
+        return error("database did not report an affected row count");
+    }
+    if affectedRows == 0 {
+        return "UNCHANGED";
+    }
+    if affectedRows == 1 {
+        return "APPLIED";
+    }
+    return error("database update affected an unexpected number of rows");
 }
 
 function requireAppliedUpdate(sql:ExecutionResult result, string message)
         returns error? {
-    if scanUpdateOutcome(result) == "UNCHANGED" {
+    ScanUpdateOutcome outcome = check scanUpdateOutcome(result);
+    if outcome == "UNCHANGED" {
         return error(message);
     }
 }

@@ -65,7 +65,9 @@ docker compose -f deployment/compose.yaml down --volumes
 - `tests/verify.sql` checks tables, named constraints and foreign keys, planned
   indexes, migration state, and seed rows. Its rollback-only acceptance fixtures
   prove result-batch atomicity, completion retry safety, owner scoping, stable
-  result/history ordering, and rejection of a port-zero scan.
+  result/history ordering, rejection of a port-zero scan, successful and blocked
+  audit trails, duplicate-event rejection, safe metadata enforcement, and
+  rollback of a lifecycle update when its audit insert fails.
 
 Do not put `BEGIN` or `COMMIT` in a migration file; the runner supplies the
 transaction. Production index migrations should use a deployment runner that

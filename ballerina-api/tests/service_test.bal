@@ -331,8 +331,13 @@ function testLifecycleUpdateOutcomesExposeUnchangedRows() {
         affectedRowCount: 0,
         lastInsertId: ()
     };
+    sql:ExecutionResult unknown = {
+        affectedRowCount: (),
+        lastInsertId: ()
+    };
     test:assertEquals(scanUpdateOutcome(applied), "APPLIED");
     test:assertEquals(scanUpdateOutcome(unchanged), "UNCHANGED");
+    test:assertTrue(scanUpdateOutcome(unknown) is error);
     test:assertTrue(requireAppliedUpdate(unchanged, "stale update") is error);
 }
 

@@ -67,7 +67,7 @@ service / on new http:Listener(listenerPort) {
         string publicScanId = uuid:createType4AsString();
         if persistenceEnabled {
             QueuedScanInsertOutcome|error insertError =
-                insertQueuedScan(publicScanId, request);
+                insertQueuedScan(publicScanId, request, requestId);
             if insertError is error {
                 log:printError("Unable to persist queued scan", insertError,
                         requestId = requestId, scanId = publicScanId);
@@ -241,14 +241,14 @@ function dispatchQueuedScan(string publicScanId, CreateScanRequest request,
         }
         ScanUpdateOutcome|error failed = markScanDispatchFailed(publicScanId,
                 scannerResult.code, scannerResult.code == BLOCKED_TARGET,
-                leaseToken);
+                leaseToken, requestId);
         if failed is error {
             return failed;
         }
         return;
     }
     ScanUpdateOutcome|error dispatched =
-        markScanDispatched(publicScanId, scannerResult.id, leaseToken);
+        markScanDispatched(publicScanId, scannerResult.id, leaseToken, requestId);
     if dispatched is error {
         return dispatched;
     }
@@ -329,7 +329,8 @@ function getPersistedScanStatus(string scanId, string requestId)
                     return unavailable;
                 }
                 ScanUpdateOutcome|error failed =
-                    markScanSynchronizationFailed(job.id, scannerResult.code);
+                    markScanSynchronizationFailed(job.id, scannerResult.code,
+                            requestId);
                 if failed is error {
                     return persistenceUnavailable(requestId);
                 }
@@ -342,7 +343,8 @@ function getPersistedScanStatus(string scanId, string requestId)
             }
             if !scannerResponseMatchesJob(job, scannerId, scannerResult) {
                 ScanUpdateOutcome|error failed =
-                    markScanSynchronizationFailed(job.id, INTERNAL_ERROR);
+                    markScanSynchronizationFailed(job.id, INTERNAL_ERROR,
+                            requestId);
                 if failed is error {
                     return persistenceUnavailable(requestId);
                 }
@@ -350,7 +352,7 @@ function getPersistedScanStatus(string scanId, string requestId)
                         requestId = requestId, scanId = scanId);
                 return internalServerError(requestId);
             }
-            error? syncError = synchronizeScanJob(job, scannerResult);
+            error? syncError = synchronizeScanJob(job, scannerResult, requestId);
             if syncError is error {
                 log:printError("Unable to synchronize persisted scan", syncError,
                         requestId = requestId, scanId = scanId);

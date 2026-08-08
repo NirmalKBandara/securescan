@@ -187,6 +187,27 @@ Detail and result reads include the owner subject. Results are ordered by
 `address, port`. The repository and public collection resource provide bounded
 first-page and keyset history queries ordered by `created_at DESC, id DESC`.
 
+## Audit Trail
+
+Every durable lifecycle mutation writes its audit event in the same database
+transaction:
+
+```text
+QUEUED     + SCAN_REQUESTED
+RUNNING    + SCAN_STARTED
+COMPLETED  + SCAN_COMPLETED
+BLOCKED    + SCAN_BLOCKED
+FAILED     + SCAN_FAILED
+```
+
+Retries emit no duplicate events because transitions update only active rows
+and PostgreSQL uniquely constrains `(scan_job_id, action)`. If the audit insert
+fails, the paired job change and any completion results roll back together.
+Events store the owner/user subject, actor type and subject, request ID, public
+scan ID, and database timestamp. Metadata is limited by action to port bounds,
+a safe failure code, or result count and duration. Targets, addresses, raw
+scanner errors, request bodies, headers, credentials, and tokens are excluded.
+
 Scan jobs progress through:
 
 ```text

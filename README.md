@@ -69,6 +69,13 @@ durable dispatch leases, strict response correlation, and transactional result
 completion make outage and retry behavior deterministic. Detail and history
 queries remain owner-scoped and deterministically ordered.
 
+The Day 15 data-layer checkpoint is complete. Requested, started, completed,
+blocked, and failed scan transitions append a constrained audit event in the
+same PostgreSQL transaction as the job/result change. Each event carries the
+owner, actor, request ID, public scan ID, database timestamp, and only
+action-specific safe metadata. Database constraints reject duplicate lifecycle
+events and metadata containing fields outside the allowlist.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -89,6 +96,7 @@ Unauthorized scanning is prohibited.
 * [x] Persist Ballerina scan jobs and results in PostgreSQL
 * [x] Make result completion transactional and add scan history queries
 * [x] Complete durable asynchronous endpoints and recovery
+* [x] Add transactional scan lifecycle audit logging
 * [ ] Build Next.js frontend
 * [ ] Integrate WSO2 Identity Server
 * [ ] Integrate WSO2 API Manager

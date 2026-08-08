@@ -623,12 +623,12 @@ the schema constraints and unique indexes reject malformed or duplicate rules.
   `failure_code` is an allowlisted code such as `SCANNER_UNAVAILABLE`; raw Go
   errors, socket diagnostics, URLs containing credentials, headers, and stack
   traces remain only in access-controlled, redacted operational logging.
-- `audit_logs.metadata` is the only flexible field and therefore uses an
-  application allowlist per action. Keys matching `authorization`, `token`,
-  `cookie`, `secret`, `password`, or request/response body are rejected before
-  insert. Metadata contains identifiers and policy outcomes, never headers or
-  arbitrary payloads. A later defense-in-depth trigger can enforce prohibited
-  key names recursively, but it does not replace service redaction.
+- `audit_logs.metadata` is the only flexible field and therefore uses both an
+  application allowlist and the `audit_logs_scan_metadata_ck` database
+  constraint. Scan events accept only port bounds, a safe failure code, or
+  result count and duration, depending on the action. Targets, resolved
+  addresses, authorization data, tokens, cookies, secrets, passwords, raw
+  diagnostics, headers, and request/response bodies are never inserted.
 - Public reads always include `owner_subject = $authenticated_subject`.
   The browser never connects to PostgreSQL. Ballerina uses a least-privilege
   runtime role; a separate migration owner creates objects, and a separate
@@ -661,18 +661,25 @@ transaction; their downs should use `DROP INDEX CONCURRENTLY`.
    audit investigation indexes inside the local runner's transaction. A
    production deployment should adapt these to concurrent builds. The down
    migration drops only these named indexes.
-3. `V003__database_roles_and_grants` (future deployment work): create/attach least-privilege grants for
+3. `V003__add_scan_dispatch_lease` (implemented): adds the expiring dispatch
+   lease columns, consistency check, and queued recovery index used by
+   idempotent asynchronous dispatch.
+4. `V004__harden_scan_audit_events` (implemented): makes scan-job references
+   immutable, constrains lifecycle actor/outcome and metadata shapes, and adds
+   the unique per-job lifecycle-event index. Its down migration restores the
+   original nullable audit relationship and removes only these additions.
+5. `V005__database_roles_and_grants` (future deployment work): create/attach least-privilege grants for
    migration owner, Ballerina runtime, audit writer, and admin reader. Keep role
    secrets in the deployment secret manager, never SQL files. Down revokes
    grants; shared production roles are not dropped automatically.
-4. Development targets are kept in `database/seeds/development.sql`, separate
+6. Development targets are kept in `database/seeds/development.sql`, separate
    from production migrations. They use deterministic IDs and no credentials;
    production allowlist data requires a separately approved data migration.
-5. `V004__optional_row_level_security`: after pooled-connection integration
+7. `V006__optional_row_level_security`: after pooled-connection integration
    tests prove transaction-local subject propagation, enable RLS and add
    user/admin policies. Down removes policies and disables RLS; deploy the
    application ownership predicates before enabling this migration.
-6. Later additive migrations use expand/backfill/validate/contract: add nullable
+8. Later additive migrations use expand/backfill/validate/contract: add nullable
    columns or `NOT VALID` constraints, backfill in bounded batches, validate,
    switch writers/readers, and only then make columns required or remove old
    data. New status values are added by replacing the named check constraint

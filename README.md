@@ -76,6 +76,13 @@ owner, actor, request ID, public scan ID, database timestamp, and only
 action-specific safe metadata. Database constraints reject duplicate lifecycle
 events and metadata containing fields outside the allowlist.
 
+The Day 16 frontend foundation is complete. The `frontend` workspace uses
+Next.js 16, React 19, strict TypeScript, and responsive plain CSS. It provides
+configuration-driven API access, a typed Ballerina client boundary, an
+accessible application shell, and routes for login, dashboard, new scans, scan
+details, history, and administration. Interactive scan states and backend
+wiring remain scheduled for Days 17–19.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -97,7 +104,8 @@ Unauthorized scanning is prohibited.
 * [x] Make result completion transactional and add scan history queries
 * [x] Complete durable asynchronous endpoints and recovery
 * [x] Add transactional scan lifecycle audit logging
-* [ ] Build Next.js frontend
+* [x] Initialize the Next.js frontend and required routes
+* [ ] Build reusable scan UI and connect it to the API
 * [ ] Integrate WSO2 Identity Server
 * [ ] Integrate WSO2 API Manager
 * [x] Add PostgreSQL Docker Compose service
@@ -114,3 +122,6 @@ The reviewed PostgreSQL design and migration plan are documented in
 
 Local database commands are documented in
 [`database development`](database/README.md).
+
+The frontend foundation and its acceptance evidence are documented in
+[`Day 16 frontend foundation`](docs/frontend/day-16-foundation.md).

@@ -1,8 +1,8 @@
 # SecureScan frontend
 
-The Day 16 frontend is a Next.js 16 App Router application with strict TypeScript,
-plain CSS design tokens, an accessible application shell, and a typed boundary
-for the Ballerina public API.
+The Day 17 frontend is a Next.js 16 App Router application with strict TypeScript,
+plain CSS design tokens, an accessible application shell, a typed boundary for
+the Ballerina public API, and reusable scan interface components.
 
 ## Requirements
 
@@ -30,9 +30,23 @@ point once identity integration is available.
 - `/scans/[id]` — scan status/results destination
 - `/history` — durable scan history destination
 - `/admin` — administrator controls destination
+- `/ui-preview` — backend-free Day 17 component and state review surface
 
-The pages intentionally contain presentation/empty states only on Day 16.
-Reusable states arrive on Day 17 and submission wiring on Day 18.
+The new-scan and scan-detail pages use the shared `ScanForm`, `ScanStatus`, and
+`ResultsTable` components. `/ui-preview` uses deterministic mock data to show
+queued, running, completed, failed, blocked, loading, error, populated-result,
+and empty-result states. Real submission wiring remains Day 18 work.
+
+## Reusable components
+
+- `ScanForm` — labeled target, port range, and authorization controls
+- `ScanStatus` and `StatusBadge` — lifecycle presentation with text and color
+- `ResultsTable` — semantic desktop table and responsive mobile result cards
+- `ErrorMessage` — alert feedback with optional correlation request ID
+- `LoadingState` — text and motion-based progress feedback
+
+Mock data lives in `lib/mocks/scans.ts` and is presentation-only. Components do
+not call the backend directly; later pages should continue to use `scansApi`.
 
 ## API client
 

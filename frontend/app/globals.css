@@ -52,9 +52,14 @@ h2 { margin:0 0 .65rem; font-size:1.05rem; }
 .field label, .checkbox { font-weight:700; font-size:.9rem; }
 .field small { color:var(--muted); }
 .field input { min-height:46px; padding:.75rem; color:var(--text); border:1px solid var(--line); border-radius:.55rem; background:#0b1915; }
+.field input[aria-invalid="true"] { border-color:var(--danger); }
+.field-error { margin:.1rem 0 0; color:#ffb0b0; font-size:.82rem; line-height:1.4; }
 .port-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
 .checkbox { display:flex; gap:.7rem; align-items:flex-start; margin:1.5rem 0; }
+.checkbox input { width:1.1rem; height:1.1rem; margin:.08rem 0 0; accent-color:var(--accent); }
+.checkbox input[aria-invalid="true"] { outline:2px solid var(--danger); outline-offset:2px; }
 .notice { color:var(--muted); font-size:.78rem; }
+.form-error { margin-top:1.5rem; }
 .detail-list { padding:2rem; }
 .detail-list dl { margin:0; }
 .detail-list dl div { display:grid; grid-template-columns:120px 1fr; padding:1rem 0; border-top:1px solid var(--line); }

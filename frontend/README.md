@@ -1,8 +1,9 @@
 # SecureScan frontend
 
-The Day 17 frontend is a Next.js 16 App Router application with strict TypeScript,
+The Day 18 frontend is a Next.js 16 App Router application with strict TypeScript,
 plain CSS design tokens, an accessible application shell, a typed boundary for
-the Ballerina public API, and reusable scan interface components.
+the Ballerina public API, reusable scan interface components, and validated scan
+submission.
 
 ## Requirements
 
@@ -26,16 +27,22 @@ point once identity integration is available.
 
 - `/login` — identity-provider entry page
 - `/dashboard` — scan overview and primary action
-- `/scans/new` — accessible scan-form preview
+- `/scans/new` — validated scan submission to the Ballerina public API
 - `/scans/[id]` — scan status/results destination
 - `/history` — durable scan history destination
 - `/admin` — administrator controls destination
 - `/ui-preview` — backend-free Day 17 component and state review surface
 
 The new-scan and scan-detail pages use the shared `ScanForm`, `ScanStatus`, and
-`ResultsTable` components. `/ui-preview` uses deterministic mock data to show
+`ResultsTable` components. `ScanForm` uses React Hook Form and Zod to validate
+target syntax, port boundaries and ordering, and explicit authorization before
+calling `scansApi.create`. Accepted jobs navigate to `/scans/{id}`; public API
+errors and correlation request IDs render in an accessible alert.
+
+`/ui-preview` uses deterministic mock data to show
 queued, running, completed, failed, blocked, loading, error, populated-result,
-and empty-result states. Real submission wiring remains Day 18 work.
+and empty-result states. Its form is deliberately disabled so the preview never
+creates a real scan.
 
 ## Reusable components
 
@@ -58,10 +65,14 @@ The boundary preserves public request IDs on `SecureScanApiError` for support.
 ## Quality checks
 
 ```bash
+npm test
 npm run typecheck
 npm run lint
 npm run build
 ```
+
+See `docs/frontend/day-18-scan-submission.md` for the submission flow, error
+behavior, manual integration checks, and test coverage.
 
 Do not commit `.env.local`, tokens, or identity-provider secrets. Only
 `NEXT_PUBLIC_*` values intended for browsers belong in this application.

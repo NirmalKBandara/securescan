@@ -298,6 +298,24 @@ function testPersistedQueuedScanIsDistinctFromRunning() {
 }
 
 @test:Config {}
+function testPersistedBlockedScanExposesSafeFailureCode() {
+    PersistedScanJob job = {
+        id: "00000000-0000-4000-8000-000000000019",
+        target: "blocked.example",
+        startPort: 1,
+        endPort: 2,
+        status: "BLOCKED",
+        failureCode: BLOCKED_TARGET,
+        createdAt: "2026-08-10T00:00:00Z",
+        updatedAt: "2026-08-10T00:00:01Z"
+    };
+    ScanStatusOk response = persistedScanResponse(job, [], "request-id");
+    test:assertEquals(response.body.data.status, "blocked");
+    test:assertEquals(response.body.data.failureCode, BLOCKED_TARGET);
+    test:assertEquals(response.body.data.result, ());
+}
+
+@test:Config {}
 function testHistoryProjectionUsesStablePublicLifecycle() {
     PersistedScanHistoryItem stored = {
         id: "00000000-0000-4000-8000-000000000015",
@@ -310,7 +328,7 @@ function testHistoryProjectionUsesStablePublicLifecycle() {
     };
     ScanHistoryItem item = persistedHistoryItem(stored);
     test:assertEquals(item.id, stored.id);
-    test:assertEquals(item.status, "failed");
+    test:assertEquals(item.status, "blocked");
 }
 
 @test:Config {}

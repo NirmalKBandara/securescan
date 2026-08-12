@@ -110,6 +110,10 @@ td { font-size:.9rem; }
 .port-open { color:var(--accent); background:var(--accent-dark); }
 .port-closed { color:var(--muted); background:#1d2c27; }
 .results-empty { min-height:240px; }
+.scan-outcome { padding:1.5rem; }
+.scan-outcome p:last-child { margin-bottom:0; }
+.outcome-failed { border-color:#693838; }
+.outcome-blocked { border-color:#674522; }
 .detail-stack, .preview-stack, .results-preview { display:grid; gap:1.25rem; }
 .preview-stack { gap:3.5rem; }
 .preview-title { margin-bottom:1rem; font-size:1.3rem; }

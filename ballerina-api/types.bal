@@ -50,7 +50,7 @@ public type CreateScanRequest record {|
     boolean authorized;
 |};
 
-public type ScanJobStatus "queued"|"accepted"|"running"|"completed"|"failed";
+public type ScanJobStatus "queued"|"accepted"|"running"|"completed"|"failed"|"blocked";
 
 public type ScanPortState "open"|"closed";
 
@@ -84,6 +84,7 @@ public type ScanStatusData record {|
     int endPort;
     string createdAt;
     string updatedAt;
+    string? failureCode = ();
     ScanResultData? result = ();
 |};
 

@@ -47,8 +47,10 @@ export const scansApi = {
       body: JSON.stringify(input),
     });
   },
-  get(id: string) {
-    return request<ScanDetail>(`/api/v1/scans/${encodeURIComponent(id)}`);
+  get(id: string, options: { signal?: AbortSignal } = {}) {
+    return request<ScanDetail>(`/api/v1/scans/${encodeURIComponent(id)}`, {
+      signal: options.signal,
+    });
   },
   list(options: { pageSize?: number; cursorCreatedAt?: string; cursorId?: string } = {}) {
     const query = new URLSearchParams();

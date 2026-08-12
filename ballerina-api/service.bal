@@ -422,6 +422,7 @@ function persistedScanResponse(PersistedScanJob job, ScanPortResult[] ports,
         endPort: job.endPort,
         createdAt: job.createdAt,
         updatedAt: job.updatedAt,
+        failureCode: job.failureCode,
         result: result
     };
     return {headers: {requestId: requestId}, body: {success: true, data: data}};
@@ -429,7 +430,7 @@ function persistedScanResponse(PersistedScanJob job, ScanPortResult[] ports,
 
 function persistedPublicStatus(string status) returns ScanJobStatus {
     return status == "QUEUED" ? "queued" : status == "COMPLETED" ? "completed" :
-                status == "FAILED" || status == "BLOCKED" ? "failed" : "running";
+                status == "BLOCKED" ? "blocked" : status == "FAILED" ? "failed" : "running";
 }
 
 function persistedHistoryItem(PersistedScanHistoryItem item)

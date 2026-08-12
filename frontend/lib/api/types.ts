@@ -36,6 +36,7 @@ export interface ScanResult {
 }
 
 export interface ScanDetail extends ScanHistoryItem {
+  failureCode?: string | null;
   result?: ScanResult | null;
 }
 

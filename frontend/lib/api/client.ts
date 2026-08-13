@@ -52,12 +52,12 @@ export const scansApi = {
       signal: options.signal,
     });
   },
-  list(options: { pageSize?: number; cursorCreatedAt?: string; cursorId?: string } = {}) {
+  list(options: { pageSize?: number; cursorCreatedAt?: string; cursorId?: string; signal?: AbortSignal } = {}) {
     const query = new URLSearchParams();
     if (options.pageSize) query.set("pageSize", String(options.pageSize));
     if (options.cursorCreatedAt) query.set("cursorCreatedAt", options.cursorCreatedAt);
     if (options.cursorId) query.set("cursorId", options.cursorId);
     const suffix = query.size ? `?${query}` : "";
-    return request<ScanHistory>(`/api/v1/scans${suffix}`);
+    return request<ScanHistory>(`/api/v1/scans${suffix}`, { signal: options.signal });
   },
 };

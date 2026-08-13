@@ -21,6 +21,29 @@ services:
       retries: 20
       start_period: 5s
 
+  identity-server:
+    image: wso2/wso2is:7.3.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WSO2_IS_HTTPS_PORT:-9443}:9443"
+    volumes:
+      - identity-server-development-data:/home/wso2carbon/wso2is-7.3.0/repository/database
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - --show-error
+        - --insecure
+        - https://localhost:9443/api/health-check/v1.0/health
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+
 volumes:
   postgres-development-data:
     name: securescan-postgres-development-data
+  identity-server-development-data:
+    name: securescan-identity-server-development-data

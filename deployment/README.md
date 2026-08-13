@@ -26,10 +26,10 @@ Once healthy, open `https://localhost:9443/console`. The official development
 image uses a self-signed certificate, so browsers and command-line clients will
 report an untrusted certificate until a local trust setup is provided.
 
-The upstream image's bootstrap administrator is for local setup only. Change
-the password immediately before creating development users or applications.
-Never use bootstrap credentials, the bundled certificate, or the embedded
-database in a deployed environment.
+For a fresh upstream image, the development bootstrap sign-in is `admin` /
+`admin`. It is for local setup only. Change the password immediately before
+creating development users or applications. Never use bootstrap credentials,
+the bundled certificate, or the embedded database in a deployed environment.
 
 Override a host port without editing the Compose file:
 

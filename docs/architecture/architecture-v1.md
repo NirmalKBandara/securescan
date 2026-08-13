@@ -74,10 +74,12 @@ become no-ops after the first commit. Owner-scoped detail/result queries and
 keyset scan-history queries use stable database ordering; exposing the history
 query as a public collection resource remains Day 14 work.
 
-WSO2 and Next.js are architectural targets and are not yet in the runtime
-request path. PostgreSQL is now the durable scan system of record. Until WSO2 is integrated, the Ballerina listener is a
-private development endpoint and `authorized: true` is only an explicit-use
-acknowledgement, not an authentication mechanism.
+Next.js is now in the development request path, and a local WSO2 Identity
+Server runtime is available from the Day 21 Compose foundation. WSO2 is not yet
+wired into the request path. PostgreSQL is the durable scan system of record.
+Until identity and API management integration is complete, the Ballerina
+listener is a private development endpoint and `authorized: true` is only an
+explicit-use acknowledgement, not an authentication mechanism.
 
 ## Initial Diagram
 
@@ -121,6 +123,7 @@ acknowledgement, not an authentication mechanism.
 
 ## Status
 
-The Ballerina-to-Go integration and PostgreSQL persistence checkpoints are
-implemented and tested. Authentication, API management, and the frontend remain
-future implementation phases.
+The Ballerina-to-Go integration, PostgreSQL persistence, scan frontend, and
+local WSO2 Identity Server runtime checkpoints are implemented. Authentication
+flows, authorization enforcement, and API management remain future integration
+phases.

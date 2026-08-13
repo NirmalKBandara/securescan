@@ -76,12 +76,16 @@ owner, actor, request ID, public scan ID, database timestamp, and only
 action-specific safe metadata. Database constraints reject duplicate lifecycle
 events and metadata containing fields outside the allowlist.
 
-The Day 16 frontend foundation is complete. The `frontend` workspace uses
-Next.js 16, React 19, strict TypeScript, and responsive plain CSS. It provides
-configuration-driven API access, a typed Ballerina client boundary, an
-accessible application shell, and routes for login, dashboard, new scans, scan
-details, history, and administration. Interactive scan states and backend
-wiring remain scheduled for Days 17–19.
+The Day 20 frontend checkpoint is complete. The `frontend` workspace uses
+Next.js 16, React 19, strict TypeScript, and responsive plain CSS. Users can
+submit validated scan requests, follow active jobs to terminal results, and
+filter durable scan history through the typed Ballerina client boundary.
+
+The Day 21 identity foundation is complete. The local Compose project now runs
+the pinned WSO2 Identity Server 7.3.0 image with loopback-only TLS exposure, a
+readiness check, and durable development identity data. OIDC application
+registration, frontend sessions, role enforcement, and API token validation
+remain separate integration checkpoints.
 
 ## Security Notice
 
@@ -105,7 +109,8 @@ Unauthorized scanning is prohibited.
 * [x] Complete durable asynchronous endpoints and recovery
 * [x] Add transactional scan lifecycle audit logging
 * [x] Initialize the Next.js frontend and required routes
-* [ ] Build reusable scan UI and connect it to the API
+* [x] Build reusable scan UI and connect it to the API
+* [x] Add WSO2 Identity Server local development foundation
 * [ ] Integrate WSO2 Identity Server
 * [ ] Integrate WSO2 API Manager
 * [x] Add PostgreSQL Docker Compose service
@@ -125,3 +130,6 @@ Local database commands are documented in
 
 The frontend foundation and its acceptance evidence are documented in
 [`Day 16 frontend foundation`](docs/frontend/day-16-foundation.md).
+
+The local identity runtime and its security boundary are documented in
+[`Day 21 identity server foundation`](docs/identity/day-21-wso2-identity-server.md).

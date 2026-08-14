@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getSession } from "@/lib/auth/session";
 
 const links = [
   { href: "/dashboard", label: "Dashboard" },
@@ -7,7 +8,13 @@ const links = [
   { href: "/admin", label: "Admin" },
 ];
 
-export function SiteHeader() {
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((part) => part[0]?.toUpperCase()).join("") || "ME";
+}
+
+export async function SiteHeader() {
+  const session = await getSession();
   return (
     <header className="site-header">
       <div className="nav-wrap">
@@ -20,7 +27,14 @@ export function SiteHeader() {
             {links.map((link) => <li key={link.href}><Link href={link.href}>{link.label}</Link></li>)}
           </ul>
         </nav>
-        <Link className="avatar" href="/login" aria-label="Account and sign in">NB</Link>
+        {session ? <div className="account-controls">
+          <span className="avatar" title={session.name} aria-label={`Signed in as ${session.name}`}>
+            {initials(session.name)}
+          </span>
+          <form action="/auth/logout" method="post">
+            <button className="logout-button" type="submit">Sign out</button>
+          </form>
+        </div> : <Link className="avatar" href="/login" aria-label="Account and sign in">?</Link>}
       </div>
     </header>
   );

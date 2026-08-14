@@ -81,6 +81,11 @@ or API Manager. `gatewaySharedSecret` authenticates that internal hop and must
 match the server-side proxy/gateway configuration. Keep Ballerina private and do
 not commit passwords, tokens, or deployed secrets to `Config.toml`.
 
+For the API Manager path, import the project under
+`deployment/apim/securescan-api`. Its request mediation policy removes untrusted
+caller identity headers and injects the validated Gateway subject, roles, and
+the matching backend-hop secret before Ballerina evaluates ownership.
+
 ## Run
 
 Start and migrate PostgreSQL first using the commands in `database/README.md`.

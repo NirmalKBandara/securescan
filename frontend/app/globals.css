@@ -17,6 +17,9 @@ nav { margin-left:auto; }
 .nav-links a { display:block; padding:.55rem .8rem; color:var(--muted); border-radius:.5rem; text-decoration:none; font-size:.9rem; }
 .nav-links a:hover, .nav-links a:focus-visible { color:var(--text); background:var(--surface); }
 .avatar { width:2.25rem; height:2.25rem; display:grid; place-items:center; border:1px solid var(--line); border-radius:50%; color:var(--accent); background:var(--surface); text-decoration:none; font-size:.72rem; font-weight:700; }
+.account-controls { display:flex; align-items:center; gap:.65rem; }
+.logout-button { padding:.45rem .65rem; color:var(--muted); border:0; border-radius:.45rem; background:transparent; cursor:pointer; }
+.logout-button:hover, .logout-button:focus-visible { color:var(--text); background:var(--surface); }
 .page-shell { width:min(1120px, calc(100% - 2rem)); min-height:calc(100vh - 145px); margin:auto; padding:4.5rem 0; outline:none; }
 .page-intro { display:flex; justify-content:space-between; align-items:flex-end; gap:2rem; margin-bottom:2.5rem; }
 .page-intro > div { max-width:720px; }
@@ -44,6 +47,7 @@ h2 { margin:0 0 .65rem; font-size:1.05rem; }
 .auth-card { width:min(460px, 100%); margin:4rem auto; padding:2.5rem; text-align:center; }
 .auth-card h1 { margin-top:.5rem; font-size:2.2rem; }
 .fine-print { font-size:.75rem; }
+.auth-error { padding:.75rem; color:#ffd4d4 !important; border:1px solid #693838; border-radius:.55rem; background:rgba(64,28,28,.65); font-size:.86rem; }
 .form-card { max-width:720px; padding:2rem; }
 .form-card fieldset { min-width:0; margin:0; padding:0; border:0; }
 .form-card legend { margin-bottom:.4rem; font-size:1.05rem; font-weight:750; }

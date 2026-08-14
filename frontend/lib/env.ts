@@ -23,5 +23,4 @@ export const env = Object.freeze({
     "NEXT_PUBLIC_API_BASE_URL",
     process.env.NEXT_PUBLIC_API_BASE_URL,
   ),
-  loginUrl: process.env.NEXT_PUBLIC_LOGIN_URL?.trim() || "/dashboard",
 });

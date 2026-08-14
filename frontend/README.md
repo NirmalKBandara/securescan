@@ -21,12 +21,23 @@ npm run dev
 Open `http://localhost:3000`. `NEXT_PUBLIC_API_BASE_URL` is required in every
 environment; the example uses the same-origin `/backend` path. Next.js rewrites
 that path to the server-only `BALLERINA_API_BASE_URL`, which defaults to
-`http://127.0.0.1:9090`. Set
-`NEXT_PUBLIC_LOGIN_URL` to the WSO2 OIDC entry
-point once identity integration is available. Day 22 also requires the
-server-only `APP_BASE_URL`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, and
-`OIDC_CLIENT_SECRET` contract shown in `.env.example`; real credentials belong
+`http://127.0.0.1:9090`. OIDC requires the server-only `APP_BASE_URL`,
+`OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, and
+`AUTH_SESSION_SECRET` values shown in `.env.example`; real credentials belong
 only in the ignored `.env.local` file.
+
+## Authentication
+
+`/auth/login` starts WSO2 Authorization Code with PKCE. `/auth/callback`
+validates the state, nonce, PKCE verifier, and signed ID token before issuing a
+bounded encrypted HttpOnly application session. `/auth/logout` accepts POST,
+clears local authentication state, and continues through WSO2 logout when the
+provider is reachable. The site header reflects the validated session without
+exposing provider tokens to client-side JavaScript.
+
+For local WSO2, trust the exported development certificate with
+`NODE_EXTRA_CA_CERTS`; do not disable Node TLS validation globally. Use HTTPS
+and managed secrets outside local development.
 
 ## Routes
 
@@ -82,6 +93,8 @@ See `docs/frontend/day-20-history-checkpoint.md` for history behavior, the
 same-origin service boundary, integration checks, and test coverage.
 OIDC application registration and exact callback settings are documented in
 `docs/identity/day-22-wso2-oidc-client.md`.
+The complete login and session behavior is documented in
+`docs/identity/day-23-oidc-login.md`.
 
 Do not commit `.env.local`, tokens, or identity-provider secrets. Only
 `NEXT_PUBLIC_*` values intended for browsers belong in this application.

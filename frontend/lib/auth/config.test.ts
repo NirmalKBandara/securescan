@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { loadOidcConfig } from "./config";
+import { loadOidcConfig } from "./config-values";
 
 const valid = {
   APP_BASE_URL: "http://localhost:3000",
+  AUTH_SESSION_SECRET: "0123456789abcdef0123456789abcdef",
   OIDC_CLIENT_ID: "secure-scan-client",
   OIDC_CLIENT_SECRET: "development-secret",
   OIDC_ISSUER: "https://localhost:9443/oauth2/token/",
@@ -20,7 +21,7 @@ describe("loadOidcConfig", () => {
     expect(config.scope).toBe("openid profile email");
   });
 
-  it.each(["APP_BASE_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "OIDC_ISSUER"])(
+  it.each(["APP_BASE_URL", "AUTH_SESSION_SECRET", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "OIDC_ISSUER"])(
     "rejects a missing %s",
     (name) => {
       expect(() => loadOidcConfig({ ...valid, [name]: " " })).toThrow(
@@ -28,6 +29,11 @@ describe("loadOidcConfig", () => {
       );
     },
   );
+
+  it("rejects a short session secret", () => {
+    expect(() => loadOidcConfig({ ...valid, AUTH_SESSION_SECRET: "too-short" }))
+      .toThrow("AUTH_SESSION_SECRET must contain at least 32 characters");
+  });
 
   it("rejects unsafe URL schemes and ambiguous public base paths", () => {
     expect(() =>

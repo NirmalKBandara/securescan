@@ -42,8 +42,34 @@ services:
       retries: 30
       start_period: 120s
 
+  api-manager:
+    image: ${WSO2_APIM_IMAGE:-wso2/wso2am:4.7.0}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WSO2_APIM_HTTPS_PORT:-9444}:9443"
+      - "127.0.0.1:${WSO2_APIM_GATEWAY_HTTPS_PORT:-8243}:8243"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - api-manager-development-data:/home/wso2carbon/wso2am-${WSO2_APIM_HOME_VERSION:-4.7.0}/repository/database
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - --show-error
+        - --insecure
+        - https://localhost:9443/publisher
+      interval: 15s
+      timeout: 15s
+      retries: 40
+      start_period: 180s
+
 volumes:
   postgres-development-data:
     name: securescan-postgres-development-data
   identity-server-development-data:
     name: securescan-identity-server-development-data
+  api-manager-development-data:
+    name: securescan-api-manager-development-data

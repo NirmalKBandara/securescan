@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth/session";
+import { APP_ROLES, hasRole, isAppMember } from "@/lib/auth/authorization";
 
 const links = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/scans/new", label: "New scan" },
   { href: "/history", label: "History" },
-  { href: "/admin", label: "Admin" },
 ];
 
 function initials(name: string) {
@@ -15,6 +15,11 @@ function initials(name: string) {
 
 export async function SiteHeader() {
   const session = await getSession();
+  const visibleLinks = session && isAppMember(session)
+    ? hasRole(session, APP_ROLES.admin)
+      ? [...links, { href: "/admin", label: "Admin" }]
+      : links
+    : [];
   return (
     <header className="site-header">
       <div className="nav-wrap">
@@ -24,7 +29,7 @@ export async function SiteHeader() {
         </Link>
         <nav aria-label="Main navigation">
           <ul className="nav-links">
-            {links.map((link) => <li key={link.href}><Link href={link.href}>{link.label}</Link></li>)}
+            {visibleLinks.map((link) => <li key={link.href}><Link href={link.href}>{link.label}</Link></li>)}
           </ul>
         </nav>
         {session ? <div className="account-controls">

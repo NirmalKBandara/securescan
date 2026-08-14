@@ -5,6 +5,7 @@ export interface OidcConfig {
   issuer: URL;
   postLogoutRedirectUri: string;
   redirectUri: string;
+  roleClaim: string;
   scope: string;
   sessionSecret: string;
 }
@@ -56,6 +57,7 @@ export function loadOidcConfig(
     issuer,
     postLogoutRedirectUri: new URL("/login", appBaseUrl).toString(),
     redirectUri: new URL("/auth/callback", appBaseUrl).toString(),
+    roleClaim: source.OIDC_ROLE_CLAIM?.trim() || "groups",
     scope: "openid profile email",
     sessionSecret,
   });

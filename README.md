@@ -91,13 +91,19 @@ The Day 22 OIDC client foundation is complete. SecureScan now has an explicit
 confidential-client configuration contract for the WSO2 issuer, exact callback
 and logout URLs, Authorization Code with PKCE, server-only credentials, and the
 future `securescan-user` / `securescan-admin` role boundary. Browser sessions
-and route enforcement remain the Day 23 and Day 24 checkpoints.
+and route enforcement follow in the Day 23 and Day 24 checkpoints.
 
 The Day 23 login checkpoint is complete. Next.js now performs Authorization
 Code with PKCE against WSO2, validates the authorization response and ID token,
 stores identity only in bounded encrypted HttpOnly sessions, safely restores
 internal destinations, and coordinates local plus provider logout. Protected
-routes and administrator authorization remain Day 24 work.
+routes and administrator authorization are added by Day 24.
+
+The Day 24 authorization checkpoint is complete. Next.js now protects the
+dashboard, scan, history, and administration routes from invalid sessions,
+admits only identities with an exact SecureScan application role, and enforces
+`securescan-admin` again inside the admin page. Navigation and the accessible
+forbidden path reflect the same centralized policy.
 
 ## Security Notice
 
@@ -123,7 +129,7 @@ Unauthorized scanning is prohibited.
 * [x] Initialize the Next.js frontend and required routes
 * [x] Build reusable scan UI and connect it to the API
 * [x] Add WSO2 Identity Server local development foundation
-* [ ] Integrate WSO2 Identity Server
+* [x] Integrate WSO2 Identity Server
 * [ ] Integrate WSO2 API Manager
 * [x] Add PostgreSQL Docker Compose service
 * [ ] Add automated tests
@@ -151,3 +157,6 @@ The OIDC application registration and configuration contract are documented in
 
 The frontend login, callback, session, and logout guarantees are documented in
 [`Day 23 OIDC login`](docs/identity/day-23-oidc-login.md).
+
+The protected-route matrix and role enforcement are documented in
+[`Day 24 route authorization`](docs/identity/day-24-route-authorization.md).

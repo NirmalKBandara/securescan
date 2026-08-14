@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadOidcConfig } from "@/lib/auth/config";
+import { extractApplicationRoles } from "@/lib/auth/authorization";
 import { client, getOidcConfiguration } from "@/lib/auth/oidc";
 import {
   clearAuthCookies,
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
       idToken: tokens.id_token,
       issuer: claims.iss,
       name: typeof nameClaim === "string" ? nameClaim : claims.sub,
-      roles: [],
+      roles: extractApplicationRoles(claims as Record<string, unknown>, config.roleClaim),
       subject: claims.sub,
     }, config);
     response.cookies.set(TRANSACTION_COOKIE, "", {

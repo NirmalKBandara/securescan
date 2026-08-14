@@ -104,17 +104,20 @@ exact `securescan-admin` role and confirm it can select User A's history through
 
 ## Frontend cutover
 
-Only after API Manager accepts access tokens from the WSO2 Identity Server key
-manager should the frontend change to:
+Day 28 implements the frontend cutover. Only after API Manager accepts access
+tokens from the WSO2 Identity Server key manager should it be enabled with:
 
 ```text
 SECURESCAN_API_MODE=gateway
-BALLERINA_API_BASE_URL=https://localhost:8243/securescan/v1
+API_MANAGER_GATEWAY_URL=https://localhost:8243/securescan/v1
 ```
 
 Trust the local Gateway certificate with `NODE_EXTRA_CA_CERTS`; never disable
 Node TLS verification globally. The browser continues to call `/backend`, and
 only the server route handler sees the access token.
+See the [Day 28 Gateway routing runbook](day-28-gateway-routing.md) for the
+Developer Portal application, scope, CORS, identity, and browser acceptance
+steps.
 
 ## Verification state
 

@@ -19,12 +19,21 @@ describe("loadOidcConfig", () => {
     expect(config.redirectUri).toBe("http://localhost:3000/auth/callback");
     expect(config.postLogoutRedirectUri).toBe("http://localhost:3000/login");
     expect(config.roleClaim).toBe("groups");
-    expect(config.scope).toBe("openid profile email");
+    expect(config.scope).toBe("openid profile email securescan:scan");
   });
 
   it("accepts an explicit role claim name", () => {
     expect(loadOidcConfig({ ...valid, OIDC_ROLE_CLAIM: "app_roles" }).roleClaim)
       .toBe("app_roles");
+  });
+
+  it("accepts configured scopes and requires the API scope", () => {
+    expect(loadOidcConfig({
+      ...valid,
+      OIDC_SCOPES: "openid email securescan:scan securescan:scan",
+    }).scope).toBe("openid email securescan:scan");
+    expect(() => loadOidcConfig({ ...valid, OIDC_SCOPES: "openid email" }))
+      .toThrow("OIDC_SCOPES must include securescan:scan");
   });
 
   it.each(["APP_BASE_URL", "AUTH_SESSION_SECRET", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "OIDC_ISSUER"])(

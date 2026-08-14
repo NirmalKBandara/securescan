@@ -15,7 +15,7 @@ servers:
 tags:
   - name: Scans
 security:
-  - oauth2: []
+  - oauth2: [securescan:scan]
 paths:
   /api/v1/scans:
     post:
@@ -140,11 +140,18 @@ components:
   securitySchemes:
     oauth2:
       type: oauth2
-      description: WSO2 API Manager application access token.
+      description: WSO2 Identity Server user access token validated by API Manager.
       flows:
-        clientCredentials:
-          tokenUrl: https://localhost:9444/oauth2/token
-          scopes: {}
+        authorizationCode:
+          authorizationUrl: https://localhost:9443/oauth2/authorize
+          tokenUrl: https://localhost:9443/oauth2/token
+          scopes:
+            securescan:scan: Create scans and read owner-authorized scan data.
+          x-scopes-mappings:
+            securescan:scan:
+              display-name: SecureScan scan access
+          x-scopes-bindings:
+            securescan:scan: securescan-user,securescan-admin
   headers:
     RequestId:
       description: Correlation identifier shared with the response envelope.

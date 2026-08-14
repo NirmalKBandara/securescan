@@ -48,6 +48,7 @@ h2 { margin:0 0 .65rem; font-size:1.05rem; }
 .auth-card h1 { margin-top:.5rem; font-size:2.2rem; }
 .fine-print { font-size:.75rem; }
 .auth-error { padding:.75rem; color:#ffd4d4 !important; border:1px solid #693838; border-radius:.55rem; background:rgba(64,28,28,.65); font-size:.86rem; }
+.access-denied-icon { width:2.5rem; height:2.5rem; margin:0 auto 1rem; }
 .form-card { max-width:720px; padding:2rem; }
 .form-card fieldset { min-width:0; margin:0; padding:0; border:0; }
 .form-card legend { margin-bottom:.4rem; font-size:1.05rem; font-weight:750; }

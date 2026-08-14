@@ -1,6 +1,29 @@
-export type ApiProxyConfig =
+type ApiProxyLimits = {
+  maxRequestBytes: number;
+  timeoutMs: number;
+};
+
+export type ApiProxyConfig = ApiProxyLimits & (
   | { baseUrl: string; mode: "gateway" }
-  | { baseUrl: string; gatewaySecret: string; mode: "direct" };
+  | { baseUrl: string; gatewaySecret: string; mode: "direct" }
+);
+
+const MAX_REQUEST_BYTES = 4_096;
+const MAX_TIMEOUT_MS = 10_000;
+
+function boundedPositiveInteger(
+  name: string,
+  value: string | undefined,
+  fallback: number,
+  maximum: number,
+) {
+  const candidate = value?.trim();
+  const parsed = candidate ? Number(candidate) : fallback;
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > maximum) {
+    throw new Error(`${name} must be an integer between 1 and ${maximum}`);
+  }
+  return parsed;
+}
 
 function absoluteBaseUrl(name: string, value: string | undefined) {
   const candidate = value?.trim();
@@ -28,6 +51,20 @@ export function loadApiProxyConfig(
   source: Record<string, string | undefined> = process.env,
 ): ApiProxyConfig {
   const mode = source.SECURESCAN_API_MODE?.trim() || "gateway";
+  const limits = {
+    maxRequestBytes: boundedPositiveInteger(
+      "API_MAX_REQUEST_BYTES",
+      source.API_MAX_REQUEST_BYTES,
+      MAX_REQUEST_BYTES,
+      MAX_REQUEST_BYTES,
+    ),
+    timeoutMs: boundedPositiveInteger(
+      "API_GATEWAY_TIMEOUT_MS",
+      source.API_GATEWAY_TIMEOUT_MS,
+      MAX_TIMEOUT_MS,
+      MAX_TIMEOUT_MS,
+    ),
+  };
 
   if (mode === "gateway") {
     return {
@@ -35,6 +72,7 @@ export function loadApiProxyConfig(
         "API_MANAGER_GATEWAY_URL",
         source.API_MANAGER_GATEWAY_URL,
       ),
+      ...limits,
       mode,
     };
   }
@@ -52,6 +90,7 @@ export function loadApiProxyConfig(
         source.BALLERINA_API_BASE_URL,
       ),
       gatewaySecret,
+      ...limits,
       mode,
     };
   }

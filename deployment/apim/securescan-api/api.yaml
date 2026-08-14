@@ -11,9 +11,16 @@ data:
     endpoint_type: http
     production_endpoints:
       url: http://host.docker.internal:9090
+      config:
+        actionSelect: fault
+        actionDuration: "10000"
+        retryTimeOut: "0"
+        retryDelay: "0"
   endpointImplementationType: ENDPOINT
   policies:
-    - Unlimited
+    - SecureScanUser
+    - SecureScanAdmin
+  enableSchemaValidation: true
   transport:
     - https
   type: HTTP

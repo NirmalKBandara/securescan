@@ -1,0 +1,24 @@
+{
+  "policyName": "SecureScanUser",
+  "displayName": "SecureScan User",
+  "description": "60 requests per minute with a 10 request per second burst cap.",
+  "isDeployed": false,
+  "type": "AdvancedThrottlePolicyInfo",
+  "defaultLimit": {
+    "type": "REQUESTCOUNTLIMIT",
+    "requestCount": {
+      "timeUnit": "min",
+      "unitTime": 1,
+      "requestCount": 60
+    }
+  },
+  "rateLimitCount": 10,
+  "rateLimitTimeUnit": "sec",
+  "stopOnQuotaReach": true,
+  "billingPlan": "FREE",
+  "customAttributes": [],
+  "permissions": {
+    "permissionType": "allow",
+    "roles": ["securescan-user"]
+  }
+}

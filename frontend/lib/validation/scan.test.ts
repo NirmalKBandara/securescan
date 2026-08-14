@@ -41,6 +41,27 @@ describe("scanFormSchema", () => {
     }
   });
 
+  it("accepts exactly 1,000 ports and rejects 1,001", () => {
+    expect(scanFormSchema.safeParse({
+      target: "scanme.nmap.org",
+      startPort: 1,
+      endPort: 1000,
+      authorized: true,
+    }).success).toBe(true);
+    const result = scanFormSchema.safeParse({
+      target: "scanme.nmap.org",
+      startPort: 1,
+      endPort: 1001,
+      authorized: true,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.flatten().fieldErrors.endPort).toContain(
+        "A scan can include at most 1000 ports",
+      );
+    }
+  });
+
   it("requires explicit authorization", () => {
     const result = scanFormSchema.safeParse({
       target: "scanme.nmap.org",

@@ -9,7 +9,7 @@ configurable int databasePort = 5432;
 configurable string databaseName = "securescan_dev";
 configurable string databaseUser = "securescan";
 configurable string databasePassword = "securescan_dev_only";
-configurable int maxActiveScansPerOwner = 5;
+configurable int maxActiveScansPerOwner = 1;
 configurable int dispatchLeaseSeconds = 15;
 configurable int reconciliationIntervalSeconds = 5;
 

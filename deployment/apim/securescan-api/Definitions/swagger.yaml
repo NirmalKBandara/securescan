@@ -45,6 +45,8 @@ paths:
                 $ref: '#/components/schemas/CreateScanResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -196,10 +198,15 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     TooManyRequests:
-      description: Per-owner active scan limit reached
+      description: Gateway quota or per-owner active scan limit reached
       headers:
         X-Request-ID:
           $ref: '#/components/headers/RequestId'
+        Retry-After:
+          description: Seconds the caller should wait before retrying when supplied
+          schema:
+            type: integer
+            minimum: 1
       content:
         application/json:
           schema:
@@ -215,6 +222,15 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     ServiceUnavailable:
       description: Scanner or persistence dependency unavailable
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PayloadTooLarge:
+      description: Request body exceeds the 4,096-byte API limit
       headers:
         X-Request-ID:
           $ref: '#/components/headers/RequestId'
@@ -240,6 +256,7 @@ components:
           type: integer
           minimum: 1
           maximum: 65535
+          description: Inclusive end port; the range may contain at most 1,000 ports.
         authorized:
           type: boolean
           description: Caller confirms ownership or explicit permission to scan.

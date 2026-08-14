@@ -17,6 +17,7 @@ public const string JOB_LIMIT_REACHED = "JOB_LIMIT_REACHED";
 public const string INTERNAL_ERROR = "INTERNAL_ERROR";
 public const string AUTHENTICATION_REQUIRED = "AUTHENTICATION_REQUIRED";
 public const string FORBIDDEN = "FORBIDDEN";
+public const string REQUEST_TOO_LARGE = "REQUEST_TOO_LARGE";
 
 public type ApiError record {|
     string code;
@@ -33,6 +34,13 @@ public type ErrorResponse record {|
 public type ResponseHeaders record {|
     @http:Header {name: "X-Request-ID"}
     string requestId;
+|};
+
+public type ThrottledResponseHeaders record {|
+    @http:Header {name: "X-Request-ID"}
+    string requestId;
+    @http:Header {name: "Retry-After"}
+    string retryAfter;
 |};
 
 public type HealthData record {|
@@ -125,12 +133,18 @@ public type ScanHistoryOk record {|
 
 public type TooManyRequestsError record {|
     *http:TooManyRequests;
-    ResponseHeaders headers;
+    ThrottledResponseHeaders headers;
     ErrorResponse body;
 |};
 
 public type BadRequestError record {|
     *http:BadRequest;
+    ResponseHeaders headers;
+    ErrorResponse body;
+|};
+
+public type PayloadTooLargeError record {|
+    *http:PayloadTooLarge;
     ResponseHeaders headers;
     ErrorResponse body;
 |};

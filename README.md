@@ -87,6 +87,12 @@ readiness check, and durable development identity data. OIDC application
 registration, frontend sessions, role enforcement, and API token validation
 remain separate integration checkpoints.
 
+The Day 22 OIDC client foundation is complete. SecureScan now has an explicit
+confidential-client configuration contract for the WSO2 issuer, exact callback
+and logout URLs, Authorization Code with PKCE, server-only credentials, and the
+future `securescan-user` / `securescan-admin` role boundary. Browser sessions
+and route enforcement remain the Day 23 and Day 24 checkpoints.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -133,3 +139,6 @@ The frontend foundation and its acceptance evidence are documented in
 
 The local identity runtime and its security boundary are documented in
 [`Day 21 identity server foundation`](docs/identity/day-21-wso2-identity-server.md).
+
+The OIDC application registration and configuration contract are documented in
+[`Day 22 OIDC client foundation`](docs/identity/day-22-wso2-oidc-client.md).

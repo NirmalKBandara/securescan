@@ -31,13 +31,18 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-
 	maxPorts, err := readPositiveInt(
 		"MAX_PORTS_PER_SCAN",
 		defaultMaxPorts,
 	)
 	if err != nil {
 		return Config{}, err
+	}
+	if maxPorts > defaultMaxPorts {
+		return Config{}, fmt.Errorf(
+			"MAX_PORTS_PER_SCAN cannot exceed hard limit %d",
+			defaultMaxPorts,
+		)
 	}
 
 	maxConcurrency, err := readPositiveInt(

@@ -369,10 +369,19 @@ function testDispatchLeaseMustOutlastScannerTimeout() {
 }
 
 @test:Config {}
-function testAsyncConfigurationMustBePositive() {
+function testAsyncConfigurationEnforcesOneActiveScanPerOwner() {
     test:assertEquals(validateAsyncConfiguration(1, 1), ());
     test:assertTrue(validateAsyncConfiguration(0, 1) is error);
+    test:assertTrue(validateAsyncConfiguration(2, 1) is error);
     test:assertTrue(validateAsyncConfiguration(1, 0) is error);
+}
+
+@test:Config {}
+function testSecurityLimitConfigurationCannotWeakenHardCaps() {
+    test:assertEquals(validateSecurityLimits(1000, 4096), ());
+    test:assertEquals(validateSecurityLimits(500, 2048), ());
+    test:assertTrue(validateSecurityLimits(1001, 4096) is error);
+    test:assertTrue(validateSecurityLimits(1000, 4097) is error);
 }
 
 @test:Config {}
@@ -473,6 +482,30 @@ function testCreateScanRejectsInvalidPortRange() returns error? {
     test:assertEquals(response.statusCode, http:STATUS_BAD_REQUEST);
     json payload = check response.getJsonPayload();
     test:assertEquals(payload.'error.code, INVALID_PORT_RANGE);
+}
+
+@test:Config {}
+function testCreateScanEnforcesOneThousandPortLimit() returns error? {
+    http:Response allowed = check postScan("scanme.nmap.org", 1, 1000, true);
+    test:assertEquals(allowed.statusCode, http:STATUS_ACCEPTED);
+    http:Response rejected = check postScan("scanme.nmap.org", 1, 1001, true);
+    test:assertEquals(rejected.statusCode, http:STATUS_BAD_REQUEST);
+    json payload = check rejected.getJsonPayload();
+    test:assertEquals(payload.'error.code, INVALID_PORT_RANGE);
+}
+
+@test:Config {}
+function testCreateScanParserRejectsOversizedBody() {
+    string oversized = "";
+    foreach int _ in 1...4097 {
+        oversized += "x";
+    }
+    CreateScanRequest|BadRequestError|PayloadTooLargeError parsed =
+        parseCreateScanRequest(oversized.toBytes(), "request-id");
+    test:assertTrue(parsed is PayloadTooLargeError);
+    if parsed is PayloadTooLargeError {
+        test:assertEquals(parsed.body.'error.code, REQUEST_TOO_LARGE);
+    }
 }
 
 @test:Config {}

@@ -52,6 +52,9 @@ The imported API also restricts CORS to `http://localhost:3000` and binds every
 operation to `securescan:scan`. The frontend application, out-of-band client,
 subscription, scope, identity, and browser verification are covered by the
 [Day 28 Gateway routing runbook](../docs/gateway/day-28-gateway-routing.md).
+Install the Day 29 user/admin subscription policies with
+`apim/configure-throttling.sh`, then follow the authorized live checks in the
+[Day 29 throttling runbook](../docs/gateway/day-29-api-throttling.md).
 
 Override a host port without editing the Compose file:
 

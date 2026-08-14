@@ -63,6 +63,11 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 			value: "0",
 		},
 		{
+			name:  "max ports above hard limit",
+			key:   "MAX_PORTS_PER_SCAN",
+			value: "1001",
+		},
+		{
 			name:  "invalid max concurrency",
 			key:   "MAX_CONCURRENT_PORTS",
 			value: "-1",

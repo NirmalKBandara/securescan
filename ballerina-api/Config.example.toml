@@ -1,5 +1,7 @@
 listenerPort = 9090
 serviceName = "securescan-api"
+maxPortsPerScan = 1000
+maxRequestBodyBytes = 4096
 authenticationEnabled = true
 gatewaySharedSecret = "replace-with-at-least-32-random-characters"
 
@@ -13,6 +15,6 @@ databasePort = 5432
 databaseName = "securescan_dev"
 databaseUser = "securescan"
 databasePassword = "securescan_dev_only"
-maxActiveScansPerOwner = 5
+maxActiveScansPerOwner = 1
 dispatchLeaseSeconds = 15
 reconciliationIntervalSeconds = 5

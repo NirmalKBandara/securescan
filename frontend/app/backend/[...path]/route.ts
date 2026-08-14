@@ -11,11 +11,12 @@ function errorResponse(
   code: string,
   message: string,
   requestId = crypto.randomUUID(),
+  headers?: HeadersInit,
 ) {
   return NextResponse.json({
     success: false,
     error: { code, message, requestId },
-  }, { status });
+  }, { headers, status });
 }
 
 function isSecureScanEnvelope(value: unknown) {
@@ -78,12 +79,24 @@ async function proxy(request: NextRequest, context: RouteContext) {
   }
 
   try {
+    let body: ArrayBuffer | undefined;
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      const declaredLength = request.headers.get("content-length");
+      if (declaredLength && Number(declaredLength) > config.maxRequestBytes) {
+        return errorResponse(413, "REQUEST_TOO_LARGE", "The API request body is too large");
+      }
+      body = await request.arrayBuffer();
+      if (body.byteLength > config.maxRequestBytes) {
+        return errorResponse(413, "REQUEST_TOO_LARGE", "The API request body is too large");
+      }
+    }
     const response = await fetch(upstream, {
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer(),
+      body,
       cache: "no-store",
       headers,
       method: request.method,
       redirect: "manual",
+      signal: AbortSignal.timeout(config.timeoutMs),
     });
     const responseHeaders = new Headers();
     for (const name of ["content-type", "location", "retry-after", "x-request-id"]) {
@@ -102,7 +115,13 @@ async function proxy(request: NextRequest, context: RouteContext) {
       const requestId = response.headers.get("x-request-id")
         || response.headers.get("x-correlation-id")
         || crypto.randomUUID();
-      return errorResponse(response.ok ? 502 : response.status, code, message, requestId);
+      return errorResponse(
+        response.ok ? 502 : response.status,
+        code,
+        message,
+        requestId,
+        responseHeaders,
+      );
     }
 
     return new NextResponse(response.body, {
@@ -110,7 +129,10 @@ async function proxy(request: NextRequest, context: RouteContext) {
       status: response.status,
       statusText: response.statusText,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      return errorResponse(504, "API_GATEWAY_TIMEOUT", "The SecureScan API timed out");
+    }
     return errorResponse(503, "API_PROXY_UNAVAILABLE", "The SecureScan API is unavailable");
   }
 }

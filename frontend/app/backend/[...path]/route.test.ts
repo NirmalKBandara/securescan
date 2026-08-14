@@ -87,6 +87,28 @@ describe("authenticated API Manager proxy", () => {
     });
   });
 
+  it("preserves gateway retry guidance on throttled requests", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+      "Message throttled out",
+      {
+        headers: { "Content-Type": "text/plain", "Retry-After": "30" },
+        status: 429,
+      },
+    )));
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/backend/api/v1/scans"),
+      context(["api", "v1", "scans"]),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("30");
+    expect(await response.json()).toMatchObject({
+      success: false,
+      error: { code: "GATEWAY_RATE_LIMITED" },
+    });
+  });
+
   it("rejects a successful but malformed upstream response", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("not json", {
       status: 200,
@@ -101,6 +123,43 @@ describe("authenticated API Manager proxy", () => {
     expect(await response.json()).toMatchObject({
       success: false,
       error: { code: "API_GATEWAY_UNAVAILABLE" },
+    });
+  });
+
+  it("rejects oversized request bodies before calling API Manager", async () => {
+    const upstream = vi.fn();
+    vi.stubGlobal("fetch", upstream);
+    const response = await POST(new NextRequest(
+      "http://localhost:3000/backend/api/v1/scans",
+      {
+        body: JSON.stringify({ padding: "x".repeat(4096) }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      },
+    ), context(["api", "v1", "scans"]));
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({
+      success: false,
+      error: { code: "REQUEST_TOO_LARGE" },
+    });
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("returns a predictable timeout envelope", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(
+      new DOMException("timed out", "TimeoutError"),
+    ));
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/backend/api/v1/scans"),
+      context(["api", "v1", "scans"]),
+    );
+
+    expect(response.status).toBe(504);
+    expect(await response.json()).toMatchObject({
+      success: false,
+      error: { code: "API_GATEWAY_TIMEOUT" },
     });
   });
 });

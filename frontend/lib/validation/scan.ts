@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const PORT_MIN = 1;
 const PORT_MAX = 65_535;
+const MAX_PORTS_PER_SCAN = 1_000;
 
 function isIpv4(value: string) {
   const octets = value.split(".");
@@ -59,6 +60,12 @@ export const scanFormSchema = z.object({
       code: "custom",
       path: ["endPort"],
       message: "End port must be greater than or equal to start port",
+    });
+  } else if (endPort - startPort + 1 > MAX_PORTS_PER_SCAN) {
+    context.addIssue({
+      code: "custom",
+      path: ["endPort"],
+      message: `A scan can include at most ${MAX_PORTS_PER_SCAN} ports`,
     });
   }
 });

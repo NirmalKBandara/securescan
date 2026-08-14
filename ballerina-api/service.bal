@@ -1,15 +1,19 @@
 import ballerina/http;
+import ballerina/lang.'string;
 import ballerina/log;
 import ballerina/lang.runtime as runtime;
 import ballerina/uuid;
 
 configurable int listenerPort = 9090;
 configurable string serviceName = "securescan-api";
+configurable int maxPortsPerScan = 1000;
+configurable int maxRequestBodyBytes = 4096;
 
 function init() returns error? {
     check validateAuthenticationConfiguration();
     check validateAsyncConfiguration(maxActiveScansPerOwner,
             reconciliationIntervalSeconds);
+    check validateSecurityLimits(maxPortsPerScan, maxRequestBodyBytes);
     check validateDispatchLease(dispatchLeaseSeconds, scannerResponseTimeout);
     if persistenceEnabled {
         _ = start reconcileActiveScansInBackground();
@@ -41,7 +45,7 @@ service / on new http:Listener(listenerPort) {
     resource function post api/v1/scans(http:Request httpRequest)
             returns CreateScanAccepted|BadRequestError|ServiceUnavailableError|
             TooManyRequestsError|InternalServerErrorResponse|UnauthorizedError|
-            ForbiddenError {
+            ForbiddenError|PayloadTooLargeError {
         string requestId = uuid:createType4AsString();
         log:printInfo("Scan create request received",
                 requestId = requestId, operation = "createScan");
@@ -55,17 +59,18 @@ service / on new http:Listener(listenerPort) {
             return authenticated;
         }
 
-        json|http:ClientError payload = httpRequest.getJsonPayload();
-        if payload is http:ClientError {
-            return badRequest(INVALID_REQUEST,
-                    "Request body must contain valid JSON", {}, requestId);
+        byte[]|http:ClientError rawPayload = httpRequest.getBinaryPayload();
+        if rawPayload is http:ClientError {
+            return badRequest(INVALID_REQUEST, "Request body is unreadable", {}, requestId);
         }
-        CreateScanRequest|error boundRequest = payload.cloneWithType();
-        if boundRequest is error {
-            return badRequest(INVALID_REQUEST,
-                    "Request body does not match the scan contract", {}, requestId);
+        CreateScanRequest|BadRequestError|PayloadTooLargeError parsedRequest =
+            parseCreateScanRequest(rawPayload, requestId);
+        CreateScanRequest request;
+        if parsedRequest is CreateScanRequest {
+            request = parsedRequest;
+        } else {
+            return parsedRequest;
         }
-        CreateScanRequest request = boundRequest;
 
         BadRequestError? validationError = validateCreateScanRequest(request, requestId);
         if validationError is BadRequestError {
@@ -301,11 +306,20 @@ function validateDispatchLease(int leaseSeconds, decimal responseTimeout)
 
 function validateAsyncConfiguration(int activeLimit, int intervalSeconds)
         returns error? {
-    if activeLimit < 1 {
-        return error("maxActiveScansPerOwner must be greater than zero");
+    if activeLimit != 1 {
+        return error("maxActiveScansPerOwner must be exactly one");
     }
     if intervalSeconds < 1 {
         return error("reconciliationIntervalSeconds must be greater than zero");
+    }
+}
+
+function validateSecurityLimits(int portLimit, int bodyLimit) returns error? {
+    if portLimit < 1 || portLimit > 1000 {
+        return error("maxPortsPerScan must be between 1 and 1000");
+    }
+    if bodyLimit < 1 || bodyLimit > 4096 {
+        return error("maxRequestBodyBytes must be between 1 and 4096");
     }
 }
 
@@ -487,12 +501,26 @@ function persistedHistoryItem(PersistedScanHistoryItem item)
 
 function jobLimitReached(string requestId) returns TooManyRequestsError {
     return {
-        headers: {requestId: requestId},
+        headers: {requestId: requestId, retryAfter: "5"},
         body: {
             success: false,
             'error: {
                 code: JOB_LIMIT_REACHED,
                 message: "Too many active scans; wait for one to finish",
+                requestId: requestId
+            }
+        }
+    };
+}
+
+function requestTooLarge(string requestId) returns PayloadTooLargeError {
+    return {
+        headers: {requestId: requestId},
+        body: {
+            success: false,
+            'error: {
+                code: REQUEST_TOO_LARGE,
+                message: "The API request body is too large",
                 requestId: requestId
             }
         }
@@ -563,12 +591,40 @@ function validateCreateScanRequest(CreateScanRequest request, string requestId)
                 "Start port must be less than or equal to end port",
                 {startPort: request.startPort, endPort: request.endPort}, requestId);
     }
+    int portCount = request.endPort - request.startPort + 1;
+    if portCount > maxPortsPerScan {
+        return badRequest(INVALID_PORT_RANGE,
+                "A scan can include at most 1000 ports",
+                {"field": "endPort", "maxPorts": maxPortsPerScan}, requestId);
+    }
     if !request.authorized {
         return badRequest(BLOCKED_TARGET,
                 "Authorized-use confirmation is required before creating a scan",
                 {"field": "authorized"}, requestId);
     }
     return ();
+}
+
+function parseCreateScanRequest(byte[] rawPayload, string requestId)
+        returns CreateScanRequest|BadRequestError|PayloadTooLargeError {
+    if rawPayload.length() > maxRequestBodyBytes {
+        return requestTooLarge(requestId);
+    }
+    string|error textPayload = 'string:fromBytes(rawPayload);
+    if textPayload is error {
+        return badRequest(INVALID_REQUEST, "Request body must be UTF-8 JSON", {}, requestId);
+    }
+    json|error payload = textPayload.fromJsonString();
+    if payload is error {
+        return badRequest(INVALID_REQUEST,
+                "Request body must contain valid JSON", {}, requestId);
+    }
+    CreateScanRequest|error boundRequest = payload.cloneWithType();
+    if boundRequest is error {
+        return badRequest(INVALID_REQUEST,
+                "Request body does not match the scan contract", {}, requestId);
+    }
+    return boundRequest;
 }
 
 function mapCreateFailure(ScannerFailure failure, string requestId)

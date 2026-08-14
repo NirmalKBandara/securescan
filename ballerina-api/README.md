@@ -46,6 +46,8 @@ local environment:
 ```toml
 listenerPort = 9090
 serviceName = "securescan-api"
+authenticationEnabled = true
+gatewaySharedSecret = "replace-with-at-least-32-random-characters"
 
 # Internal Go scanner address; never expose this in public responses.
 scannerServiceUrl = "http://localhost:8081"
@@ -60,7 +62,6 @@ databasePort = 5432
 databaseName = "securescan_dev"
 databaseUser = "securescan"
 databasePassword = "securescan_dev_only"
-developmentOwnerSubject = "development-user"
 maxActiveScansPerOwner = 5
 dispatchLeaseSeconds = 15
 reconciliationIntervalSeconds = 5
@@ -75,8 +76,10 @@ BAL_CONFIG_VAR_SERVICENAME=securescan-api-local \
 bal run
 ```
 
-`developmentOwnerSubject` is temporary until WSO2 supplies an authenticated
-subject. Do not commit passwords, tokens, or other credentials to `Config.toml`.
+The scan resources require trusted identity headers from the local Next.js proxy
+or API Manager. `gatewaySharedSecret` authenticates that internal hop and must
+match the server-side proxy/gateway configuration. Keep Ballerina private and do
+not commit passwords, tokens, or deployed secrets to `Config.toml`.
 
 ## Run
 
@@ -118,6 +121,9 @@ Generated build artifacts are written to `target/`.
 curl --include \
   --request POST \
   --header "Content-Type: application/json" \
+  --header "X-SecureScan-Subject: development-user" \
+  --header "X-SecureScan-Roles: securescan-user" \
+  --header "X-SecureScan-Gateway-Secret: <configured-shared-secret>" \
   --data '{"target":"scanme.nmap.org","startPort":1,"endPort":100,"authorized":true}' \
   http://localhost:9090/api/v1/scans
 ```
@@ -128,6 +134,9 @@ Copy the `id` returned by the create request and use it here:
 
 ```bash
 curl --include \
+  --header "X-SecureScan-Subject: development-user" \
+  --header "X-SecureScan-Roles: securescan-user" \
+  --header "X-SecureScan-Gateway-Secret: <configured-shared-secret>" \
   http://localhost:9090/api/v1/scans/945686d6-c53f-4717-9d98-51f913fc8904
 ```
 
@@ -162,6 +171,9 @@ result data is committed.
 
 ```bash
 curl --include \
+  --header "X-SecureScan-Subject: development-user" \
+  --header "X-SecureScan-Roles: securescan-user" \
+  --header "X-SecureScan-Gateway-Secret: <configured-shared-secret>" \
   'http://localhost:9090/api/v1/scans?pageSize=20'
 ```
 
@@ -172,8 +184,9 @@ send both values from the final item:
 ?pageSize=20&cursorCreatedAt=<createdAt>&cursorId=<id>
 ```
 
-`pageSize` must be between 1 and 100. Until WSO2 integration, all rows are
-scoped to `developmentOwnerSubject`.
+`pageSize` must be between 1 and 100. History is scoped to the authenticated
+subject. An exact `securescan-admin` identity may select another user with the
+`ownerSubject` query parameter; ordinary users receive `403` for that request.
 
 ## Persistence Guarantees
 

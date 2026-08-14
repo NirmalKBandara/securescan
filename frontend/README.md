@@ -23,7 +23,10 @@ environment; the example uses the same-origin `/backend` path. Next.js rewrites
 that path to the server-only `BALLERINA_API_BASE_URL`, which defaults to
 `http://127.0.0.1:9090`. Set
 `NEXT_PUBLIC_LOGIN_URL` to the WSO2 OIDC entry
-point once identity integration is available.
+point once identity integration is available. Day 22 also requires the
+server-only `APP_BASE_URL`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, and
+`OIDC_CLIENT_SECRET` contract shown in `.env.example`; real credentials belong
+only in the ignored `.env.local` file.
 
 ## Routes
 
@@ -77,6 +80,8 @@ npm run build
 
 See `docs/frontend/day-20-history-checkpoint.md` for history behavior, the
 same-origin service boundary, integration checks, and test coverage.
+OIDC application registration and exact callback settings are documented in
+`docs/identity/day-22-wso2-oidc-client.md`.
 
 Do not commit `.env.local`, tokens, or identity-provider secrets. Only
 `NEXT_PUBLIC_*` values intended for browsers belong in this application.

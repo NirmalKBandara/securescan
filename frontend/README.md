@@ -25,6 +25,8 @@ that path to the server-only `BALLERINA_API_BASE_URL`, which defaults to
 `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, and
 `AUTH_SESSION_SECRET` values shown in `.env.example`; real credentials belong
 only in the ignored `.env.local` file.
+Set `OIDC_ROLE_CLAIM` to the WSO2 claim that carries exact
+`securescan-user` / `securescan-admin` values; it defaults to `groups`.
 
 ## Authentication
 
@@ -34,6 +36,12 @@ bounded encrypted HttpOnly application session. `/auth/logout` accepts POST,
 clears local authentication state, and continues through WSO2 logout when the
 provider is reachable. The site header reflects the validated session without
 exposing provider tokens to client-side JavaScript.
+
+`proxy.ts` protects dashboard, scan, history, and admin routes. Both application
+roles can use ordinary scan routes, while only `securescan-admin` can enter
+`/admin`; the admin page repeats that check server-side. Identities without an
+application role receive `/forbidden`. This frontend gate does not replace
+API Manager or Ballerina access-token validation.
 
 For local WSO2, trust the exported development certificate with
 `NODE_EXTRA_CA_CERTS`; do not disable Node TLS validation globally. Use HTTPS
@@ -47,6 +55,7 @@ and managed secrets outside local development.
 - `/scans/[id]` — scan status/results destination
 - `/history` — durable scan history with status filtering and UTC timestamps
 - `/admin` — administrator controls destination
+- `/forbidden` — accessible insufficient-role outcome
 - `/ui-preview` — backend-free Day 17 component and state review surface
 
 The new-scan, scan-detail, and history pages use the shared `ScanForm`, `ScanStatus`, and
@@ -95,6 +104,8 @@ OIDC application registration and exact callback settings are documented in
 `docs/identity/day-22-wso2-oidc-client.md`.
 The complete login and session behavior is documented in
 `docs/identity/day-23-oidc-login.md`.
+The role matrix and protected route behavior are documented in
+`docs/identity/day-24-route-authorization.md`.
 
 Do not commit `.env.local`, tokens, or identity-provider secrets. Only
 `NEXT_PUBLIC_*` values intended for browsers belong in this application.

@@ -10,6 +10,7 @@ import type { AuthSession } from "./session-values";
 
 function session(roles: string[]): AuthSession {
   return {
+    accessToken: "access-token",
     expiresAt: Date.now() + 60_000,
     idToken: "id-token",
     issuer: "https://localhost:9443/oauth2/token",

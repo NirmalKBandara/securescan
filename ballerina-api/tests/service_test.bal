@@ -246,6 +246,7 @@ function testHealthEndpoint() returns error? {
 function testPersistedCompletedScanUsesPublicIdAndStoredResults() {
     PersistedScanJob job = {
         id: "00000000-0000-4000-8000-000000000012",
+        ownerSubject: "alice",
         scannerScanId: COMPLETED_SCAN_ID,
         target: "scanme.nmap.org",
         startPort: 1,
@@ -266,6 +267,7 @@ function testPersistedCompletedScanUsesPublicIdAndStoredResults() {
 function testPersistedRunningScanDoesNotExposeResult() {
     PersistedScanJob job = {
         id: "00000000-0000-4000-8000-000000000013",
+        ownerSubject: "alice",
         scannerScanId: RUNNING_SCAN_ID,
         target: "scanme.nmap.org",
         startPort: 1,
@@ -283,6 +285,7 @@ function testPersistedRunningScanDoesNotExposeResult() {
 function testPersistedQueuedScanIsDistinctFromRunning() {
     PersistedScanJob job = {
         id: "00000000-0000-4000-8000-000000000014",
+        ownerSubject: "alice",
         target: "scanme.nmap.org",
         startPort: 1,
         endPort: 2,
@@ -299,6 +302,7 @@ function testPersistedQueuedScanIsDistinctFromRunning() {
 function testPersistedBlockedScanExposesSafeFailureCode() {
     PersistedScanJob job = {
         id: "00000000-0000-4000-8000-000000000019",
+        ownerSubject: "alice",
         target: "blocked.example",
         startPort: 1,
         endPort: 2,
@@ -372,9 +376,48 @@ function testAsyncConfigurationMustBePositive() {
 }
 
 @test:Config {}
+function testGatewayIdentityRequiresSharedSecretAndApplicationRole() {
+    AuthContext|UnauthorizedError|ForbiddenError user =
+        authenticateGatewayIdentity("test-secret", "alice",
+                "everyone, securescan-user", "test-secret", "request-id");
+    test:assertTrue(user is AuthContext);
+    if user is AuthContext {
+        test:assertEquals(user.subject, "alice");
+        test:assertFalse(user.admin);
+    }
+
+    AuthContext|UnauthorizedError|ForbiddenError admin =
+        authenticateGatewayIdentity("test-secret", "admin-subject",
+                "securescan-admin", "test-secret", "request-id");
+    test:assertTrue(admin is AuthContext);
+    if admin is AuthContext {
+        test:assertTrue(admin.admin);
+        test:assertTrue(canAccessOwner(admin, "alice"));
+    }
+
+    AuthContext|UnauthorizedError|ForbiddenError wrongSecret =
+        authenticateGatewayIdentity("wrong", "alice", "securescan-user",
+                "test-secret", "request-id");
+    test:assertTrue(wrongSecret is UnauthorizedError);
+
+    AuthContext|UnauthorizedError|ForbiddenError unrelatedRole =
+        authenticateGatewayIdentity("test-secret", "alice", "administrator",
+                "test-secret", "request-id");
+    test:assertTrue(unrelatedRole is ForbiddenError);
+}
+
+@test:Config {}
+function testOrdinaryUserCannotSelectAnotherOwner() {
+    AuthContext user = {subject: "alice", admin: false};
+    test:assertTrue(canAccessOwner(user, "alice"));
+    test:assertFalse(canAccessOwner(user, "bob"));
+}
+
+@test:Config {}
 function testScannerResponseMustMatchPersistedJob() {
     PersistedScanJob job = {
         id: "00000000-0000-4000-8000-000000000016",
+        ownerSubject: "alice",
         scannerScanId: RUNNING_SCAN_ID,
         target: "scanme.nmap.org",
         startPort: 1,

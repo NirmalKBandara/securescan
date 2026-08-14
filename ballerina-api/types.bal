@@ -15,6 +15,8 @@ public const string SCANNER_UNAVAILABLE = "SCANNER_UNAVAILABLE";
 public const string PERSISTENCE_UNAVAILABLE = "PERSISTENCE_UNAVAILABLE";
 public const string JOB_LIMIT_REACHED = "JOB_LIMIT_REACHED";
 public const string INTERNAL_ERROR = "INTERNAL_ERROR";
+public const string AUTHENTICATION_REQUIRED = "AUTHENTICATION_REQUIRED";
+public const string FORBIDDEN = "FORBIDDEN";
 
 public type ApiError record {|
     string code;
@@ -135,6 +137,18 @@ public type BadRequestError record {|
 
 public type NotFoundError record {|
     *http:NotFound;
+    ResponseHeaders headers;
+    ErrorResponse body;
+|};
+
+public type UnauthorizedError record {|
+    *http:Unauthorized;
+    ResponseHeaders headers;
+    ErrorResponse body;
+|};
+
+public type ForbiddenError record {|
+    *http:Forbidden;
     ResponseHeaders headers;
     ErrorResponse body;
 |};

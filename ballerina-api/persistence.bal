@@ -9,7 +9,6 @@ configurable int databasePort = 5432;
 configurable string databaseName = "securescan_dev";
 configurable string databaseUser = "securescan";
 configurable string databasePassword = "securescan_dev_only";
-configurable string developmentOwnerSubject = "development-user";
 configurable int maxActiveScansPerOwner = 5;
 configurable int dispatchLeaseSeconds = 15;
 configurable int reconciliationIntervalSeconds = 5;
@@ -25,6 +24,7 @@ final postgresql:Client? databaseClient = persistenceEnabled ? check new (
 
 type PersistedScanJob record {|
     string id;
+    string ownerSubject;
     string? scannerScanId = ();
     string target;
     int startPort;
@@ -75,7 +75,8 @@ type AdvisoryLockResult record {|
     string locked;
 |};
 
-function insertQueuedScan(string id, CreateScanRequest request, string requestId)
+function insertQueuedScan(string id, string ownerSubject, CreateScanRequest request,
+        string requestId)
         returns QueuedScanInsertOutcome|error {
     postgresql:Client db = check getDatabaseClient();
     string target = request.target.trim();
@@ -83,14 +84,14 @@ function insertQueuedScan(string id, CreateScanRequest request, string requestId
 
         stream<AdvisoryLockResult, sql:Error?> lockStream = db->query(`
             SELECT pg_advisory_xact_lock(
-                hashtext(${developmentOwnerSubject}))::text AS "locked"`);
+                hashtext(${ownerSubject}))::text AS "locked"`);
         AdvisoryLockResult[] lockRows = check from AdvisoryLockResult lockResult in lockStream
             select lockResult;
         _ = lockRows;
         stream<ActiveScanCount, sql:Error?> countStream = db->query(`
             SELECT count(*)::bigint AS "activeCount"
               FROM scan_jobs
-             WHERE owner_subject = ${developmentOwnerSubject}
+             WHERE owner_subject = ${ownerSubject}
                AND status IN ('QUEUED', 'RUNNING')`);
         ActiveScanCount[] counts = check from ActiveScanCount count in countStream
             select count;
@@ -99,13 +100,13 @@ function insertQueuedScan(string id, CreateScanRequest request, string requestId
             _ = check db->execute(`
                 INSERT INTO scan_jobs
                     (id, owner_subject, target, start_port, end_port, status)
-                VALUES (CAST(${id} AS uuid), ${developmentOwnerSubject}, ${target},
+                VALUES (CAST(${id} AS uuid), ${ownerSubject}, ${target},
                         ${request.startPort}, ${request.endPort}, 'QUEUED')`);
             json metadata = {
                 startPort: request.startPort,
                 endPort: request.endPort
             };
-            check insertAuditEvent(db, "USER", developmentOwnerSubject,
+            check insertAuditEvent(db, "USER", ownerSubject, ownerSubject,
                     "SCAN_REQUESTED", "SUCCESS", requestId, id, metadata);
         }
         check commit;
@@ -132,8 +133,8 @@ function claimScanDispatch(string id, string leaseToken)
     return scanUpdateOutcome(update);
 }
 
-function markScanDispatched(string id, string scannerScanId, string leaseToken,
-        string requestId)
+function markScanDispatched(string id, string ownerSubject, string scannerScanId,
+        string leaseToken, string requestId)
         returns ScanUpdateOutcome|error {
     postgresql:Client db = check getDatabaseClient();
     ScanUpdateOutcome outcome = "UNCHANGED";
@@ -148,7 +149,7 @@ function markScanDispatched(string id, string scannerScanId, string leaseToken,
                AND dispatch_lease_token = CAST(${leaseToken} AS uuid)`);
         outcome = check scanUpdateOutcome(update);
         if outcome == "APPLIED" {
-            check insertAuditEvent(db, "SERVICE", serviceName,
+            check insertAuditEvent(db, "SERVICE", serviceName, ownerSubject,
                     "SCAN_STARTED", "SUCCESS", requestId, id, {});
         }
         check commit;
@@ -156,7 +157,7 @@ function markScanDispatched(string id, string scannerScanId, string leaseToken,
     return outcome;
 }
 
-function markScanDispatchFailed(string id, string failureCode,
+function markScanDispatchFailed(string id, string ownerSubject, string failureCode,
         boolean blocked, string leaseToken, string requestId)
         returns ScanUpdateOutcome|error {
     postgresql:Client db = check getDatabaseClient();
@@ -173,7 +174,7 @@ function markScanDispatchFailed(string id, string failureCode,
         updateOutcome = check scanUpdateOutcome(update);
         if updateOutcome == "APPLIED" {
             json metadata = {failureCode: failureCode};
-            check insertAuditEvent(db, "SERVICE", serviceName,
+            check insertAuditEvent(db, "SERVICE", serviceName, ownerSubject,
                     blocked ? "SCAN_BLOCKED" : "SCAN_FAILED",
                     blocked ? "DENIED" : "FAILURE", requestId, id, metadata);
         }
@@ -182,8 +183,8 @@ function markScanDispatchFailed(string id, string failureCode,
     return updateOutcome;
 }
 
-function markScanSynchronizationFailed(string id, string failureCode,
-        string requestId)
+function markScanSynchronizationFailed(string id, string ownerSubject,
+        string failureCode, string requestId)
         returns ScanUpdateOutcome|error {
     postgresql:Client db = check getDatabaseClient();
     ScanUpdateOutcome outcome = "UNCHANGED";
@@ -197,7 +198,7 @@ function markScanSynchronizationFailed(string id, string failureCode,
         outcome = check scanUpdateOutcome(update);
         if outcome == "APPLIED" {
             json metadata = {failureCode: failureCode};
-            check insertAuditEvent(db, "SERVICE", serviceName,
+            check insertAuditEvent(db, "SERVICE", serviceName, ownerSubject,
                     "SCAN_FAILED", "FAILURE", requestId, id, metadata);
         }
         check commit;
@@ -205,12 +206,12 @@ function markScanSynchronizationFailed(string id, string failureCode,
     return outcome;
 }
 
-function loadScanJob(string id, string ownerSubject)
+function loadScanJobForActor(string id, string actorSubject, boolean admin)
         returns PersistedScanJob|error? {
     postgresql:Client db = check getDatabaseClient();
     stream<PersistedScanJob, sql:Error?> rowStream =
         db->query(`
-            SELECT id::text AS "id",
+            SELECT id::text AS "id", owner_subject AS "ownerSubject",
                    scanner_scan_id::text AS "scannerScanId",
                    target AS "target", start_port AS "startPort",
                    end_port AS "endPort", status AS "status",
@@ -222,20 +223,20 @@ function loadScanJob(string id, string ownerSubject)
                            'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt"
              FROM scan_jobs
              WHERE id = CAST(${id} AS uuid)
-               AND owner_subject = ${ownerSubject}`);
+               AND (${admin} OR owner_subject = ${actorSubject})`);
     PersistedScanJob[] rows = check from PersistedScanJob row in rowStream
         select row;
     return rows.length() == 0 ? () : rows[0];
 }
 
-function loadActiveScanJobs(string ownerSubject, int pageSize)
+function loadActiveScanJobs(int pageSize)
         returns PersistedScanJob[]|error {
     if pageSize < 1 {
         return error("active scan reconciliation limit must be positive");
     }
     postgresql:Client db = check getDatabaseClient();
     stream<PersistedScanJob, sql:Error?> rowStream = db->query(`
-        SELECT id::text AS "id",
+        SELECT id::text AS "id", owner_subject AS "ownerSubject",
                scanner_scan_id::text AS "scannerScanId",
                target AS "target", start_port AS "startPort",
                end_port AS "endPort", status AS "status",
@@ -246,8 +247,7 @@ function loadActiveScanJobs(string ownerSubject, int pageSize)
                to_char(updated_at AT TIME ZONE 'UTC',
                        'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt"
           FROM scan_jobs
-         WHERE owner_subject = ${ownerSubject}
-           AND status IN ('QUEUED', 'RUNNING')
+         WHERE status IN ('QUEUED', 'RUNNING')
          ORDER BY created_at, id
          LIMIT ${pageSize}`);
     return check from PersistedScanJob row in rowStream select row;
@@ -261,7 +261,8 @@ function synchronizeScanJob(PersistedScanJob job, ScannerStatusResponse scanner,
         return;
     }
     if scanner.status == "failed" {
-        _ = check markScanSynchronizationFailed(job.id, "SCANNER_FAILED",
+        _ = check markScanSynchronizationFailed(job.id, job.ownerSubject,
+                "SCANNER_FAILED",
                 requestId);
         return;
     }
@@ -273,7 +274,7 @@ function synchronizeScanJob(PersistedScanJob job, ScannerStatusResponse scanner,
             SELECT id::text AS "id"
               FROM scan_jobs
              WHERE id = CAST(${job.id} AS uuid)
-               AND owner_subject = ${developmentOwnerSubject}
+               AND owner_subject = ${job.ownerSubject}
                AND status IN ('QUEUED', 'RUNNING')
              FOR UPDATE`);
         LockedScanJob[] activeJobs = check from LockedScanJob activeJob in lockStream
@@ -304,7 +305,7 @@ function synchronizeScanJob(PersistedScanJob job, ScannerStatusResponse scanner,
                 resultCount: result.results.length(),
                 durationNanos: result.duration
             };
-            check insertAuditEvent(db, "SERVICE", serviceName,
+            check insertAuditEvent(db, "SERVICE", serviceName, job.ownerSubject,
                     "SCAN_COMPLETED", "SUCCESS", requestId, job.id, metadata);
         }
         check commit;
@@ -312,7 +313,7 @@ function synchronizeScanJob(PersistedScanJob job, ScannerStatusResponse scanner,
 }
 
 function insertAuditEvent(postgresql:Client db, AuditActorType actorType,
-        string actorSubject, AuditAction action, AuditOutcome outcome,
+        string actorSubject, string ownerSubject, AuditAction action, AuditOutcome outcome,
         string requestId, string scanId, json metadata) returns error? {
     string eventId = uuid:createType4AsString();
     string metadataJson = metadata.toJsonString();
@@ -321,12 +322,12 @@ function insertAuditEvent(postgresql:Client db, AuditActorType actorType,
             (id, actor_type, actor_subject, owner_subject, action, outcome,
              request_id, scan_job_id, metadata)
         VALUES (CAST(${eventId} AS uuid), ${actorType}, ${actorSubject},
-                ${developmentOwnerSubject}, ${action}, ${outcome},
+                ${ownerSubject}, ${action}, ${outcome},
                 CAST(${requestId} AS uuid), CAST(${scanId} AS uuid),
                 CAST(${metadataJson} AS jsonb))`);
 }
 
-function loadScanResults(string id, string ownerSubject)
+function loadScanResultsForActor(string id, string actorSubject, boolean admin)
         returns PersistedScanResult[]|error {
     postgresql:Client db = check getDatabaseClient();
     stream<PersistedScanResult, sql:Error?> resultStream =
@@ -339,7 +340,7 @@ function loadScanResults(string id, string ownerSubject)
                    SELECT 1
                     FROM scan_jobs
                     WHERE scan_jobs.id = scan_results.scan_job_id
-                      AND scan_jobs.owner_subject = ${ownerSubject}
+                      AND (${admin} OR scan_jobs.owner_subject = ${actorSubject})
                )
              ORDER BY address, port`);
     return check from PersistedScanResult result in resultStream

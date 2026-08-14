@@ -28,6 +28,13 @@ only in the ignored `.env.local` file.
 Set `OIDC_ROLE_CLAIM` to the WSO2 claim that carries exact
 `securescan-user` / `securescan-admin` values; it defaults to `groups`.
 
+`/backend` is an authenticated route-handler proxy rather than a transparent
+rewrite. In `direct` mode it derives trusted identity headers from the encrypted
+session and calls loopback-only Ballerina with `SECURESCAN_API_GATEWAY_SECRET`.
+In `gateway` mode it sends the session's access token to the published API
+Manager context. Browser-provided identity headers and cookies are never passed
+to Ballerina.
+
 ## Authentication
 
 `/auth/login` starts WSO2 Authorization Code with PKCE. `/auth/callback`

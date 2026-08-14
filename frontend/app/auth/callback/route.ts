@@ -37,8 +37,8 @@ export async function GET(request: NextRequest) {
       { redirect_uri: config.redirectUri },
     );
     const claims = tokens.claims();
-    if (!claims?.sub || !claims.iss || !tokens.id_token) {
-      throw new Error("Validated ID token is missing required identity claims");
+    if (!claims?.sub || !claims.iss || !tokens.id_token || !tokens.access_token) {
+      throw new Error("Validated token response is missing required identity data");
     }
 
     const now = Date.now();
@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.redirect(new URL(transaction.returnTo, config.appBaseUrl), 303);
     response.headers.set("Cache-Control", "no-store");
     setSessionCookie(response, {
+      accessToken: tokens.access_token,
       email: typeof claims.email === "string" ? claims.email : undefined,
       expiresAt,
       idToken: tokens.id_token,

@@ -105,6 +105,12 @@ admits only identities with an exact SecureScan application role, and enforces
 `securescan-admin` again inside the admin page. Navigation and the accessible
 forbidden path reflect the same centralized policy.
 
+The Day 25 ownership checkpoint is complete. New scans and lifecycle audit
+events carry the authenticated subject, ordinary users can retrieve only their
+own detail and history records, and the API independently authorizes exact
+administrator roles for cross-user reads. The Next.js backend route forwards
+identity from the encrypted session without exposing tokens to browser code.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -160,3 +166,6 @@ The frontend login, callback, session, and logout guarantees are documented in
 
 The protected-route matrix and role enforcement are documented in
 [`Day 24 route authorization`](docs/identity/day-24-route-authorization.md).
+
+Authenticated scan ownership and API-side RBAC are documented in
+[`Day 25 ownership and RBAC`](docs/identity/day-25-ownership-rbac.md).

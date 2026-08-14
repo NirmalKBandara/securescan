@@ -18,6 +18,18 @@ data:
     - https
   type: HTTP
   visibility: PUBLIC
+  corsConfiguration:
+    corsConfigurationEnabled: true
+    accessControlAllowOrigins:
+      - http://localhost:3000
+    accessControlAllowCredentials: false
+    accessControlAllowHeaders:
+      - Authorization
+      - Content-Type
+    accessControlAllowMethods:
+      - GET
+      - POST
+      - OPTIONS
   mediationPolicies:
     - name: securescan-identity-in
       type: IN

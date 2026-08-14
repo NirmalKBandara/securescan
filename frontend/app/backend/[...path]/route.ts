@@ -1,28 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { loadApiProxyConfig } from "@/lib/api/proxy-config";
 
 export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ path: string[] }> };
 
-function errorResponse(status: number, code: string, message: string) {
+function errorResponse(
+  status: number,
+  code: string,
+  message: string,
+  requestId = crypto.randomUUID(),
+) {
   return NextResponse.json({
     success: false,
-    error: { code, message, requestId: crypto.randomUUID() },
+    error: { code, message, requestId },
   }, { status });
 }
 
-function backendConfiguration() {
-  const baseUrl = process.env.BALLERINA_API_BASE_URL?.trim().replace(/\/$/, "");
-  const mode = process.env.SECURESCAN_API_MODE?.trim() || "direct";
-  if (!baseUrl || (mode !== "direct" && mode !== "gateway")) {
-    throw new Error("SecureScan API proxy configuration is invalid");
+function isSecureScanEnvelope(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+  const envelope = value as Record<string, unknown>;
+  if (envelope.success === true) return "data" in envelope;
+  if (envelope.success !== false || !envelope.error || typeof envelope.error !== "object") {
+    return false;
   }
-  const gatewaySecret = process.env.SECURESCAN_API_GATEWAY_SECRET?.trim();
-  if (mode === "direct" && (!gatewaySecret || gatewaySecret.length < 32)) {
-    throw new Error("SECURESCAN_API_GATEWAY_SECRET must contain at least 32 characters");
+  const error = envelope.error as Record<string, unknown>;
+  return typeof error.code === "string" && typeof error.message === "string";
+}
+
+function gatewayFailure(status: number) {
+  if (status === 401) {
+    return ["GATEWAY_AUTHENTICATION_FAILED", "Your API session is no longer valid"] as const;
   }
-  return { baseUrl, gatewaySecret, mode };
+  if (status === 403) {
+    return ["GATEWAY_ACCESS_DENIED", "Your account cannot perform this API request"] as const;
+  }
+  if (status === 429) {
+    return ["GATEWAY_RATE_LIMITED", "Too many API requests; try again shortly"] as const;
+  }
+  if (status >= 400 && status < 500) {
+    return ["GATEWAY_REQUEST_REJECTED", "API Manager rejected the request"] as const;
+  }
+  return ["API_GATEWAY_UNAVAILABLE", "API Manager returned an unusable response"] as const;
 }
 
 async function proxy(request: NextRequest, context: RouteContext) {
@@ -31,9 +51,9 @@ async function proxy(request: NextRequest, context: RouteContext) {
     return errorResponse(401, "AUTHENTICATION_REQUIRED", "Sign in to use SecureScan");
   }
 
-  let config: ReturnType<typeof backendConfiguration>;
+  let config: ReturnType<typeof loadApiProxyConfig>;
   try {
-    config = backendConfiguration();
+    config = loadApiProxyConfig();
   } catch {
     return errorResponse(503, "API_PROXY_UNAVAILABLE", "The SecureScan API is not configured");
   }
@@ -66,10 +86,25 @@ async function proxy(request: NextRequest, context: RouteContext) {
       redirect: "manual",
     });
     const responseHeaders = new Headers();
-    for (const name of ["content-type", "location", "x-request-id"]) {
+    for (const name of ["content-type", "location", "retry-after", "x-request-id"]) {
       const value = response.headers.get(name);
       if (value) responseHeaders.set(name, value);
     }
+
+    let envelope: unknown;
+    try {
+      envelope = await response.clone().json();
+    } catch {
+      envelope = undefined;
+    }
+    if (!isSecureScanEnvelope(envelope)) {
+      const [code, message] = gatewayFailure(response.ok ? 502 : response.status);
+      const requestId = response.headers.get("x-request-id")
+        || response.headers.get("x-correlation-id")
+        || crypto.randomUUID();
+      return errorResponse(response.ok ? 502 : response.status, code, message, requestId);
+    }
+
     return new NextResponse(response.body, {
       headers: responseHeaders,
       status: response.status,

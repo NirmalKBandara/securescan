@@ -1,6 +1,6 @@
 # SecureScan frontend
 
-The Day 20 frontend is a Next.js 16 App Router application with strict TypeScript,
+The Day 28 frontend is a Next.js 16 App Router application with strict TypeScript,
 plain CSS design tokens, an accessible application shell, a typed boundary for
 the Ballerina public API, reusable scan interface components, and validated scan
 submission.
@@ -19,21 +19,27 @@ npm run dev
 ```
 
 Open `http://localhost:3000`. `NEXT_PUBLIC_API_BASE_URL` is required in every
-environment; the example uses the same-origin `/backend` path. Next.js rewrites
-that path to the server-only `BALLERINA_API_BASE_URL`, which defaults to
-`http://127.0.0.1:9090`. OIDC requires the server-only `APP_BASE_URL`,
+environment; the example uses the same-origin `/backend` path. The authenticated
+Next.js route sends that traffic to the server-only `API_MANAGER_GATEWAY_URL`.
+OIDC requires the server-only `APP_BASE_URL`,
 `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, and
 `AUTH_SESSION_SECRET` values shown in `.env.example`; real credentials belong
 only in the ignored `.env.local` file.
 Set `OIDC_ROLE_CLAIM` to the WSO2 claim that carries exact
 `securescan-user` / `securescan-admin` values; it defaults to `groups`.
+`OIDC_SCOPES` must include both `openid` and the API's `securescan:scan` scope.
 
 `/backend` is an authenticated route-handler proxy rather than a transparent
 rewrite. In `direct` mode it derives trusted identity headers from the encrypted
 session and calls loopback-only Ballerina with `SECURESCAN_API_GATEWAY_SECRET`.
 In `gateway` mode it sends the session's access token to the published API
-Manager context. Browser-provided identity headers and cookies are never passed
-to Ballerina.
+Manager context. This is the default and fails closed if
+`API_MANAGER_GATEWAY_URL` is absent. `BALLERINA_API_BASE_URL` is read only when
+the explicit development fallback `SECURESCAN_API_MODE=direct` is selected.
+Browser-provided identity headers and cookies are never passed to Ballerina.
+Non-envelope API Manager errors are converted to safe public error envelopes so
+the existing accessible alert remains useful for authentication, scope, and
+throttling failures.
 
 ## Authentication
 
@@ -113,6 +119,8 @@ The complete login and session behavior is documented in
 `docs/identity/day-23-oidc-login.md`.
 The role matrix and protected route behavior are documented in
 `docs/identity/day-24-route-authorization.md`.
+The API Manager application, subscription, scope, CORS, and live browser checks
+are documented in `docs/gateway/day-28-gateway-routing.md`.
 
 Do not commit `.env.local`, tokens, or identity-provider secrets. Only
 `NEXT_PUBLIC_*` values intended for browsers belong in this application.

@@ -48,6 +48,10 @@ for the full component and authentication plan.
 
 The importable API project and Gateway acceptance procedure are documented in
 the [Day 27 publishing runbook](../docs/gateway/day-27-api-manager-publishing.md).
+The imported API also restricts CORS to `http://localhost:3000` and binds every
+operation to `securescan:scan`. The frontend application, out-of-band client,
+subscription, scope, identity, and browser verification are covered by the
+[Day 28 Gateway routing runbook](../docs/gateway/day-28-gateway-routing.md).
 
 Override a host port without editing the Compose file:
 

@@ -10,6 +10,19 @@ export interface OidcConfig {
   sessionSecret: string;
 }
 
+const DEFAULT_SCOPES = "openid profile email securescan:scan";
+
+function oidcScopes(value: string | undefined) {
+  const scopes = (value?.trim() || DEFAULT_SCOPES).split(/\s+/);
+  const uniqueScopes = [...new Set(scopes)];
+  for (const requiredScope of ["openid", "securescan:scan"]) {
+    if (!uniqueScopes.includes(requiredScope)) {
+      throw new Error(`OIDC_SCOPES must include ${requiredScope}`);
+    }
+  }
+  return uniqueScopes.join(" ");
+}
+
 function required(name: string, value: string | undefined) {
   const candidate = value?.trim();
   if (!candidate) throw new Error(`${name} is required`);
@@ -58,7 +71,7 @@ export function loadOidcConfig(
     postLogoutRedirectUri: new URL("/login", appBaseUrl).toString(),
     redirectUri: new URL("/auth/callback", appBaseUrl).toString(),
     roleClaim: source.OIDC_ROLE_CLAIM?.trim() || "groups",
-    scope: "openid profile email",
+    scope: oidcScopes(source.OIDC_SCOPES),
     sessionSecret,
   });
 }

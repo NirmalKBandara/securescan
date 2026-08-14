@@ -93,6 +93,12 @@ and logout URLs, Authorization Code with PKCE, server-only credentials, and the
 future `securescan-user` / `securescan-admin` role boundary. Browser sessions
 and route enforcement remain the Day 23 and Day 24 checkpoints.
 
+The Day 23 login checkpoint is complete. Next.js now performs Authorization
+Code with PKCE against WSO2, validates the authorization response and ID token,
+stores identity only in bounded encrypted HttpOnly sessions, safely restores
+internal destinations, and coordinates local plus provider logout. Protected
+routes and administrator authorization remain Day 24 work.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -142,3 +148,6 @@ The local identity runtime and its security boundary are documented in
 
 The OIDC application registration and configuration contract are documented in
 [`Day 22 OIDC client foundation`](docs/identity/day-22-wso2-oidc-client.md).
+
+The frontend login, callback, session, and logout guarantees are documented in
+[`Day 23 OIDC login`](docs/identity/day-23-oidc-login.md).

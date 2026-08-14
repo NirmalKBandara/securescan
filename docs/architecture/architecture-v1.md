@@ -77,8 +77,9 @@ query as a public collection resource remains Day 14 work.
 Next.js is now in the development request path, and a local WSO2 Identity
 Server runtime is available from the Day 21 Compose foundation. Day 22 defines
 the confidential OIDC client, exact callbacks, scopes, and application-role
-contract, but WSO2 is not yet wired into the browser request path. PostgreSQL
-is the durable scan system of record.
+contract. Day 23 wires WSO2 into the browser path with Authorization Code plus
+PKCE and an encrypted server-managed frontend session. Routes are not yet
+authorization-gated. PostgreSQL is the durable scan system of record.
 Until identity and API management integration is complete, the Ballerina
 listener is a private development endpoint and `authorized: true` is only an
 explicit-use acknowledgement, not an authentication mechanism.

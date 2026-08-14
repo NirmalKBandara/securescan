@@ -111,6 +111,11 @@ own detail and history records, and the API independently authorizes exact
 administrator roles for cross-user reads. The Next.js backend route forwards
 identity from the encrypted session without exposing tokens to browser code.
 
+The Day 26 API Manager foundation pins WSO2 API Manager 4.7.0 in the local
+Compose topology and records the Publisher, Developer Portal, Gateway,
+application, subscription, lifecycle, throttling, backend, and token-validation
+plan. Live portal verification remains pending on a Docker-capable host.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -169,3 +174,6 @@ The protected-route matrix and role enforcement are documented in
 
 Authenticated scan ownership and API-side RBAC are documented in
 [`Day 25 ownership and RBAC`](docs/identity/day-25-ownership-rbac.md).
+
+The API management runtime and publishing plan are documented in
+[`Day 26 API Manager foundation`](docs/gateway/day-26-wso2-api-manager.md).

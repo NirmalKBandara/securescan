@@ -128,6 +128,13 @@ tokens server-side, rejects silent Ballerina bypass, and normalizes Gateway
 failures for the UI. The API project adds scope/role bindings and exact-origin
 CORS. Live browser acceptance remains pending with the Day 27 runtime evidence.
 
+The Day 29 security-limit checkpoint is repository-complete. Separate user and
+administrator subscription policies protect Gateway capacity; the application
+independently enforces one active scan per owner, a 1,000-port maximum, a
+4,096-byte request maximum, bounded timeouts, safe throttling responses, and
+direct-backend authentication. Live WSO2 quota and recovery evidence remains
+pending on a Docker-capable host.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -196,3 +203,7 @@ The import, publication, subscription, and Gateway verification runbook is in
 The frontend Gateway cutover, Developer Portal application setup, scope and
 identity checks, and browser acceptance run are documented in
 [`Day 28 Gateway routing`](docs/gateway/day-28-gateway-routing.md).
+
+The throttling tiers, layered application limits, API versioning policy, and
+live quota/bypass acceptance procedure are documented in
+[`Day 29 API throttling`](docs/gateway/day-29-api-throttling.md).

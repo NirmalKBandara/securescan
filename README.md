@@ -116,6 +116,12 @@ Compose topology and records the Publisher, Developer Portal, Gateway,
 application, subscription, lifecycle, throttling, backend, and token-validation
 plan. Live portal verification remains pending on a Docker-capable host.
 
+The Day 27 repository artifacts are ready for API Manager import: a complete
+OpenAPI v1 contract, versioned API Controller project, Ballerina backend
+endpoint, identity-header mediation, and executable Gateway acceptance check.
+Live import, subscription, and invocation evidence remains pending on a host
+with Docker and API Controller.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -177,3 +183,6 @@ Authenticated scan ownership and API-side RBAC are documented in
 
 The API management runtime and publishing plan are documented in
 [`Day 26 API Manager foundation`](docs/gateway/day-26-wso2-api-manager.md).
+
+The import, publication, subscription, and Gateway verification runbook is in
+[`Day 27 API Manager publishing`](docs/gateway/day-27-api-manager-publishing.md).

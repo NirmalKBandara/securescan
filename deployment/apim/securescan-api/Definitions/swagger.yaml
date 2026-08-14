@@ -1,0 +1,376 @@
+openapi: 3.0.3
+info:
+  title: SecureScan API
+  version: v1
+  description: >-
+    Authenticated API for submitting authorized network scans and reading
+    owner-scoped status, results, and history. Only scan systems you own or
+    have explicit permission to test.
+  license:
+    name: MIT
+    url: https://opensource.org/license/mit
+servers:
+  - url: https://localhost:8243/securescan/v1
+    description: Local WSO2 API Manager Gateway
+tags:
+  - name: Scans
+security:
+  - oauth2: []
+paths:
+  /api/v1/scans:
+    post:
+      tags: [Scans]
+      operationId: createScan
+      summary: Submit an authorized scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScanRequest'
+            example:
+              target: scanme.nmap.org
+              startPort: 1
+              endPort: 100
+              authorized: true
+      responses:
+        '202':
+          description: Durable scan job accepted
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateScanResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    get:
+      tags: [Scans]
+      operationId: listScans
+      summary: List owner-scoped scan history
+      parameters:
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursorCreatedAt
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: cursorId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: ownerSubject
+          in: query
+          description: Exact owner subject; selecting another owner requires securescan-admin.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+      responses:
+        '200':
+          description: Owner-scoped history page
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanHistoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/scans/{scanId}:
+    get:
+      tags: [Scans]
+      operationId: getScan
+      summary: Read an owner-authorized scan
+      parameters:
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Scan status and terminal results when complete
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: WSO2 API Manager application access token.
+      flows:
+        clientCredentials:
+          tokenUrl: https://localhost:9444/oauth2/token
+          scopes: {}
+  headers:
+    RequestId:
+      description: Correlation identifier shared with the response envelope.
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Request validation failed
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid API or trusted-gateway authentication
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Authenticated identity lacks the required role or owner access
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Scan does not exist or is not visible to the caller
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TooManyRequests:
+      description: Per-owner active scan limit reached
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Safe internal processing failure
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailable:
+      description: Scanner or persistence dependency unavailable
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    CreateScanRequest:
+      type: object
+      additionalProperties: false
+      required: [target, startPort, endPort, authorized]
+      properties:
+        target:
+          type: string
+          minLength: 1
+          maxLength: 253
+        startPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        endPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        authorized:
+          type: boolean
+          description: Caller confirms ownership or explicit permission to scan.
+    ScanSummary:
+      type: object
+      required: [id, status, target, startPort, endPort]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/ScanStatus'
+        target:
+          type: string
+        startPort:
+          type: integer
+        endPort:
+          type: integer
+    ScanHistoryItem:
+      allOf:
+        - $ref: '#/components/schemas/ScanSummary'
+        - type: object
+          required: [createdAt, updatedAt]
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    ScanDetail:
+      allOf:
+        - $ref: '#/components/schemas/ScanHistoryItem'
+        - type: object
+          properties:
+            failureCode:
+              type: string
+            result:
+              $ref: '#/components/schemas/ScanResult'
+    ScanResult:
+      type: object
+      additionalProperties: false
+      required: [target, startPort, endPort, results, durationNanos]
+      properties:
+        target:
+          type: string
+        startPort:
+          type: integer
+        endPort:
+          type: integer
+        durationNanos:
+          type: integer
+          format: int64
+          minimum: 0
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortResult'
+    PortResult:
+      type: object
+      additionalProperties: false
+      required: [address, port, state]
+      properties:
+        address:
+          type: string
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        state:
+          type: string
+          enum: [open, closed]
+    ScanStatus:
+      type: string
+      enum: [queued, accepted, running, completed, failed, blocked]
+    CreateScanResponse:
+      type: object
+      additionalProperties: false
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: '#/components/schemas/ScanSummary'
+    ScanStatusResponse:
+      type: object
+      additionalProperties: false
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: '#/components/schemas/ScanDetail'
+    ScanHistoryResponse:
+      type: object
+      additionalProperties: false
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          additionalProperties: false
+          required: [items, pageSize]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ScanHistoryItem'
+            pageSize:
+              type: integer
+              minimum: 1
+              maximum: 100
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [code, message, requestId]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        requestId:
+          type: string
+          format: uuid
+        details:
+          type: object
+          additionalProperties: true
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          $ref: '#/components/schemas/ApiError'

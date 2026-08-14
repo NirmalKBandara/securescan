@@ -1,0 +1,24 @@
+type: api
+version: v4.5.0
+data:
+  name: SecureScanAPI
+  description: Authenticated SecureScan scan submission, status, and history API.
+  context: /securescan
+  version: v1
+  provider: admin
+  lifeCycleStatus: PUBLISHED
+  endpointConfig:
+    endpoint_type: http
+    production_endpoints:
+      url: http://host.docker.internal:9090
+  endpointImplementationType: ENDPOINT
+  policies:
+    - Unlimited
+  transport:
+    - https
+  type: HTTP
+  visibility: PUBLIC
+  mediationPolicies:
+    - name: securescan-identity-in
+      type: IN
+      shared: false

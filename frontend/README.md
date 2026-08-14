@@ -1,6 +1,6 @@
 # SecureScan frontend
 
-The Day 28 frontend is a Next.js 16 App Router application with strict TypeScript,
+The Day 29 frontend is a Next.js 16 App Router application with strict TypeScript,
 plain CSS design tokens, an accessible application shell, a typed boundary for
 the Ballerina public API, reusable scan interface components, and validated scan
 submission.
@@ -39,7 +39,10 @@ the explicit development fallback `SECURESCAN_API_MODE=direct` is selected.
 Browser-provided identity headers and cookies are never passed to Ballerina.
 Non-envelope API Manager errors are converted to safe public error envelopes so
 the existing accessible alert remains useful for authentication, scope, and
-throttling failures.
+throttling failures. The proxy rejects request bodies above 4,096 bytes, waits
+at most 10 seconds for the Gateway, and preserves `Retry-After` when WSO2
+throttles a request. Server-side environment values may lower, but never raise,
+those hard limits.
 
 ## Authentication
 
@@ -121,6 +124,8 @@ The role matrix and protected route behavior are documented in
 `docs/identity/day-24-route-authorization.md`.
 The API Manager application, subscription, scope, CORS, and live browser checks
 are documented in `docs/gateway/day-28-gateway-routing.md`.
+Day 29 throttling, request limits, timeouts, and live acceptance are documented
+in `docs/gateway/day-29-api-throttling.md`.
 
 Do not commit `.env.local`, tokens, or identity-provider secrets. Only
 `NEXT_PUBLIC_*` values intended for browsers belong in this application.

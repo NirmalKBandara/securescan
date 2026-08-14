@@ -46,6 +46,9 @@ so a Day 27 endpoint can reach Ballerina at
 [Day 26 API Manager foundation](../docs/gateway/day-26-wso2-api-manager.md)
 for the full component and authentication plan.
 
+The importable API project and Gateway acceptance procedure are documented in
+the [Day 27 publishing runbook](../docs/gateway/day-27-api-manager-publishing.md).
+
 Override a host port without editing the Compose file:
 
 ```sh

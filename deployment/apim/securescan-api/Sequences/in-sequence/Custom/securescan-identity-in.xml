@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence xmlns="http://ws.apache.org/ns/synapse" name="securescan-identity-in">
+    <header name="X-SecureScan-Subject" scope="transport" action="remove"/>
+    <header name="X-SecureScan-Roles" scope="transport" action="remove"/>
+    <header name="X-SecureScan-Gateway-Secret" scope="transport" action="remove"/>
+    <header name="X-SecureScan-Subject" scope="transport"
+            expression="get-property('api.ut.userId')"/>
+    <header name="X-SecureScan-Roles" scope="transport"
+            expression="get-property('api.ut.userRoles')"/>
+    <header name="X-SecureScan-Gateway-Secret" scope="transport"
+            value="${SECURESCAN_GATEWAY_SHARED_SECRET}"/>
+</sequence>

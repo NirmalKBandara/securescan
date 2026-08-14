@@ -8,6 +8,7 @@ const now = Date.now();
 describe("auth cookie values", () => {
   it("accepts live sessions and rejects expired sessions", () => {
     const session: AuthSession = {
+      accessToken: "access-token",
       expiresAt: now + 60_000,
       idToken: "id-token",
       issuer: "https://localhost:9443/oauth2/token",

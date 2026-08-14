@@ -6,6 +6,7 @@ scannerServiceUrl = "http://localhost:18081"
 scannerConnectTimeout = 2.0
 scannerResponseTimeout = 5.0
 persistenceEnabled = false
+authenticationEnabled = false
 maxActiveScansPerOwner = 5
 dispatchLeaseSeconds = 15
 reconciliationIntervalSeconds = 5

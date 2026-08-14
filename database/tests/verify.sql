@@ -337,6 +337,54 @@ BEGIN
 END
 $verification$;
 
+-- Day 25 owner isolation and audit attribution
+INSERT INTO scan_jobs (
+    id, owner_subject, target, start_port, end_port, status
+) VALUES
+    ('20000000-0000-4000-8000-000000000040', 'subject:alice',
+     'alice.dev.example', 80, 80, 'QUEUED'),
+    ('20000000-0000-4000-8000-000000000041', 'subject:bob',
+     'bob.dev.example', 443, 443, 'QUEUED');
+
+INSERT INTO audit_logs (
+    id, actor_type, actor_subject, owner_subject, action, outcome,
+    request_id, scan_job_id, metadata
+) VALUES (
+    '40000000-0000-4000-8000-000000000040', 'USER', 'subject:alice',
+    'subject:alice', 'SCAN_REQUESTED', 'SUCCESS',
+    '50000000-0000-4000-8000-000000000040',
+    '20000000-0000-4000-8000-000000000040',
+    '{"startPort":80,"endPort":80}'
+);
+
+DO $verification$
+BEGIN
+    IF (SELECT count(*) FROM scan_jobs
+         WHERE owner_subject = 'subject:alice') <> 1 THEN
+        RAISE EXCEPTION 'owner-scoped history exposed another user';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM scan_jobs
+         WHERE id = '20000000-0000-4000-8000-000000000041'
+           AND owner_subject = 'subject:alice'
+    ) THEN
+        RAISE EXCEPTION 'owner-scoped detail exposed another user';
+    END IF;
+    IF (SELECT count(*) FROM scan_jobs
+         WHERE owner_subject IN ('subject:alice', 'subject:bob')) <> 2 THEN
+        RAISE EXCEPTION 'administrator cross-owner query is incomplete';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM audit_logs
+         WHERE scan_job_id = '20000000-0000-4000-8000-000000000040'
+           AND actor_subject = 'subject:alice'
+           AND owner_subject = 'subject:alice'
+    ) THEN
+        RAISE EXCEPTION 'authenticated audit attribution is missing';
+    END IF;
+END
+$verification$;
+
 ROLLBACK;
 
 BEGIN;

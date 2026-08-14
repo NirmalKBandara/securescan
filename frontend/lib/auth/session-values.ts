@@ -9,6 +9,7 @@ export interface AuthTransaction {
 }
 
 export interface AuthSession {
+  accessToken: string;
   email?: string;
   expiresAt: number;
   idToken: string;
@@ -34,7 +35,7 @@ export function readSession(
   now = Date.now(),
 ) {
   const session = unseal<AuthSession>(value, secret);
-  if (!session || session.expiresAt <= now || !session.subject || !session.issuer) {
+  if (!session || session.expiresAt <= now || !session.subject || !session.issuer || !session.accessToken) {
     return null;
   }
   return session;

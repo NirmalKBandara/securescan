@@ -122,6 +122,12 @@ endpoint, identity-header mediation, and executable Gateway acceptance check.
 Live import, subscription, and invocation evidence remains pending on a host
 with Docker and API Controller.
 
+The Day 28 frontend cutover is repository-complete. The authenticated Next.js
+proxy now targets API Manager by default, requests the API scope, keeps access
+tokens server-side, rejects silent Ballerina bypass, and normalizes Gateway
+failures for the UI. The API project adds scope/role bindings and exact-origin
+CORS. Live browser acceptance remains pending with the Day 27 runtime evidence.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -186,3 +192,7 @@ The API management runtime and publishing plan are documented in
 
 The import, publication, subscription, and Gateway verification runbook is in
 [`Day 27 API Manager publishing`](docs/gateway/day-27-api-manager-publishing.md).
+
+The frontend Gateway cutover, Developer Portal application setup, scope and
+identity checks, and browser acceptance run are documented in
+[`Day 28 Gateway routing`](docs/gateway/day-28-gateway-routing.md).

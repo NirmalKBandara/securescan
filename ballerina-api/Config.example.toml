@@ -5,8 +5,6 @@ scannerServiceUrl = "http://localhost:8081"
 scannerConnectTimeout = 2.0
 scannerResponseTimeout = 5.0
 
-# These values match deployment/compose.yaml for local development only.
-# Supply databasePassword through deployment configuration in real environments.
 persistenceEnabled = true
 databaseHost = "localhost"
 databasePort = 5432

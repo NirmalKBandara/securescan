@@ -91,7 +91,6 @@ func TestCreateScanEnforcesGlobalActiveLimit(t *testing.T) {
 	limited := createTestScan(t, api, testIdempotencyKeyTwo, 54, 54)
 	assertErrorResponse(t, limited, http.StatusTooManyRequests, errorCodeJobLimitReached)
 
-	// An idempotent retry is not new work and remains available at capacity.
 	retry := createTestScan(t, api, testIdempotencyKeyOne, 53, 53)
 	if retry.Code != http.StatusAccepted {
 		close(release)

@@ -165,9 +165,6 @@ function classifyScannerBadRequest(http:Response response) returns ScannerFailur
     return {code: INTERNAL_ERROR};
 }
 
-// Enforce the Go job lifecycle before projecting downstream data publicly.
-// Literal status/state types reject arbitrary diagnostic strings, while these
-// checks reject otherwise well-typed but internally inconsistent payloads.
 function hasValidLifecycleShape(ScannerStatusResponse response) returns boolean {
     if response.status == "completed" {
         return response.result is ScannerResult && response.'error is ();

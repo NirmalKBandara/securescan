@@ -34,7 +34,6 @@ type scanJob struct {
 }
 
 type jobStore struct {
-	// HTTP handlers run concurrently.
 	mu              sync.RWMutex
 	jobs            map[string]scanJob
 	idempotencyKeys map[string]string

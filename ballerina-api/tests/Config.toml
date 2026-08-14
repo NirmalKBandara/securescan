@@ -1,4 +1,5 @@
-# Keep automated tests separate from the development listener and real scanner.
+# Keep automated tests separate
+
 listenerPort = 9091
 serviceName = "securescan-api-test"
 scannerServiceUrl = "http://localhost:18081"

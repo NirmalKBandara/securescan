@@ -80,7 +80,6 @@ func (api *api) createScanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// API input is converted into the same configuration used by the CLI.
 	scanConfig := models.ScanConfig{
 		Target:              strings.TrimSpace(request.Target),
 		StartPort:           request.StartPort,
@@ -104,7 +103,6 @@ func (api *api) createScanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prevents an unsafe target from becoming an accepted job.
 	if _, err := validation.ValidateTarget(
 		scanConfig.Target,
 		scanConfig.AllowPrivateTargets,
@@ -165,7 +163,6 @@ func (api *api) createScanHandler(w http.ResponseWriter, r *http.Request) {
 	if !created {
 		return
 	}
-	// The HTTP request can finish while the scan continues in the background.
 	go api.runScan(job.ID, scanConfig)
 }
 
@@ -187,7 +184,6 @@ func decodeJSONBody(
 	destination any,
 ) error {
 
-	// Protects the internal service from oversized JSON requests.
 	r.Body = http.MaxBytesReader(w, r.Body, maximumRequestBodyBytes)
 
 	decoder := json.NewDecoder(r.Body)
@@ -197,7 +193,6 @@ func decodeJSONBody(
 		return errors.New("request body must contain valid scan JSON")
 	}
 
-	// Only one JSON value is allowed | trailing data may indicate a malformed
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return errors.New("request body must contain one JSON object")
 	}

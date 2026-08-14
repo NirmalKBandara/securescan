@@ -123,8 +123,7 @@ BEGIN
 END
 $verification$;
 
--- Acceptance guard: a scan containing port zero must be rejected. The inner
--- block is a subtransaction, so this test never leaves a fixture behind.
+-- Acceptance guard
 DO $verification$
 BEGIN
     BEGIN
@@ -146,8 +145,6 @@ BEGIN
 END
 $verification$;
 
--- Day 13 acceptance fixtures run in one outer transaction and are rolled back,
--- so verification can exercise lifecycle and ordering without retaining jobs.
 BEGIN;
 
 DO $verification$
@@ -217,7 +214,6 @@ INSERT INTO scan_jobs (
     '2026-08-04T10:00:01Z'
 );
 
--- A failed result batch must leave no partial observations behind.
 DO $verification$
 BEGIN
     BEGIN
@@ -265,8 +261,6 @@ SET status = 'COMPLETED', duration_nanos = 1500000,
 WHERE id = '20000000-0000-4000-8000-000000000010'
   AND status IN ('QUEUED', 'RUNNING');
 
--- This models a retried completion after the first transaction committed. The
--- terminal-state predicate must prevent the retry from appending a new row.
 WITH active_job AS (
     SELECT id
     FROM scan_jobs
@@ -345,8 +339,6 @@ $verification$;
 
 ROLLBACK;
 
--- Day 15 acceptance: successful and blocked jobs retain a complete,
--- constrained audit trail. All fixtures are rolled back.
 BEGIN;
 
 INSERT INTO scan_jobs (
@@ -452,8 +444,6 @@ BEGIN
 END
 $verification$;
 
--- A duplicate terminal event is rejected, proving lifecycle retries cannot
--- append a second audit row.
 DO $verification$
 BEGIN
     BEGIN
@@ -475,7 +465,6 @@ BEGIN
 END
 $verification$;
 
--- An invalid audit insert rolls back its paired lifecycle update.
 INSERT INTO scan_jobs (
     id, scanner_scan_id, owner_subject, target, start_port, end_port,
     status, created_at, updated_at, started_at

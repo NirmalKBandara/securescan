@@ -80,8 +80,7 @@ function insertQueuedScan(string id, CreateScanRequest request, string requestId
     postgresql:Client db = check getDatabaseClient();
     string target = request.target.trim();
     transaction {
-        // Serialize admission per owner so concurrent requests cannot both
-        // pass the active-job check.
+
         stream<AdvisoryLockResult, sql:Error?> lockStream = db->query(`
             SELECT pg_advisory_xact_lock(
                 hashtext(${developmentOwnerSubject}))::text AS "locked"`);
@@ -269,9 +268,7 @@ function synchronizeScanJob(PersistedScanJob job, ScannerStatusResponse scanner,
 
     ScannerResult result = <ScannerResult>scanner.result;
     transaction {
-        // Locking before writing makes concurrent completion retries serialize.
-        // Once the first transaction commits, later retries see a terminal job
-        // and cannot append or replace result rows.
+        
         stream<LockedScanJob, sql:Error?> lockStream = db->query(`
             SELECT id::text AS "id"
               FROM scan_jobs

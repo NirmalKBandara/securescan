@@ -1,4 +1,4 @@
--- Deterministic, credential-free fixtures for local development only.
+-- Local development only.
 INSERT INTO allowed_targets (
     id, target_kind, hostname_normalized, scope, start_port, end_port,
     created_by_subject

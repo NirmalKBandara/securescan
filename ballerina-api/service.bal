@@ -45,8 +45,6 @@ service / on new http:Listener(listenerPort) {
         log:printInfo("Scan create request received",
                 requestId = requestId, operation = "createScan");
 
-        // Parse inside the resource so malformed or wrongly shaped requests
-        // still receive the standard envelope and correlation ID.
         json|http:ClientError payload = httpRequest.getJsonPayload();
         if payload is http:ClientError {
             return badRequest(INVALID_REQUEST,
@@ -76,8 +74,7 @@ service / on new http:Listener(listenerPort) {
             if insertError == "LIMIT_REACHED" {
                 return jobLimitReached(requestId);
             }
-            // The durable public job exists before any Go call. Dispatch runs
-            // independently, so scanner latency cannot delay this response.
+
             _ = start dispatchQueuedScanInBackground(publicScanId, request,
                     requestId);
             CreateScanData queuedData = {
@@ -226,13 +223,11 @@ function dispatchQueuedScan(string publicScanId, CreateScanRequest request,
         return claim;
     }
     if claim == "UNCHANGED" {
-        // Another request or worker owns the unexpired durable lease.
         return;
     }
     ScannerCreateResponse|ScannerFailure scannerResult =
         createScannerJob(request, requestId, publicScanId);
     if scannerResult is ScannerFailure {
-        // Availability failures remain QUEUED so a later detail poll can retry.
         if scannerResult.code == SCANNER_UNAVAILABLE ||
                 scannerResult.code == JOB_LIMIT_REACHED {
             log:printWarn("Scanner dispatch deferred for recovery",

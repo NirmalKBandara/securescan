@@ -16,7 +16,7 @@ func newUUID() (string, error) {
 		return "", err
 	}
 
-	// These bits mark the random value as a standards-compatible UUID v4.
+	// Standards-compatible UUID v4.
 	bytes[6] = (bytes[6] & 0x0f) | 0x40
 	bytes[8] = (bytes[8] & 0x3f) | 0x80
 

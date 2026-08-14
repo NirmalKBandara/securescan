@@ -4,7 +4,7 @@ import ballerina/test;
 
 final http:Client apiClient = check new ("http://localhost:9091");
 
-// Different deterministic UUIDs let the mock scanner represent each job state.
+// Different deterministic UUIDs
 const string COMPLETED_SCAN_ID = "00000000-0000-4000-8000-000000000007";
 const string RUNNING_SCAN_ID = "00000000-0000-4000-8000-000000000008";
 const string FAILED_SCAN_ID = "00000000-0000-4000-8000-000000000009";
@@ -58,8 +58,7 @@ type MockNotFound record {|
     json body;
 |};
 
-// The deterministic scanner fake also requires the correlation header, proving
-// that the API propagates its generated request ID downstream.
+// API propagates its generated request ID downstream.
 service / on new http:Listener(18081) {
     resource function post internal/scans(
             @http:Payload MockScannerRequest request,
@@ -172,7 +171,7 @@ service / on new http:Listener(18081) {
             };
             return malformed;
         }
-        // A running scan has timestamps but does not have a result yet.
+        // A running scan has timestamps
         if scanId == RUNNING_SCAN_ID {
             MockStatusOk running = {
                 body: {
@@ -187,8 +186,7 @@ service / on new http:Listener(18081) {
             };
             return running;
         }
-        // Failed-job diagnostics stay inside the scanner boundary. The public
-        // API must expose only the safe lifecycle status.
+
         if scanId == FAILED_SCAN_ID {
             MockStatusOk failed = {
                 body: {
@@ -510,7 +508,6 @@ function testGetRunningScanReturnsStatusWithoutResult() returns error? {
     json payload = check response.getJsonPayload();
     test:assertEquals(payload.data.id, RUNNING_SCAN_ID);
     test:assertEquals(payload.data.status, "running");
-    // A running job must not manufacture a completed scan result.
     test:assertFalse(payload.toJsonString().includes("durationNanos"));
 }
 
@@ -521,7 +518,6 @@ function testGetFailedScanDoesNotLeakInternalError() returns error? {
     json payload = check response.getJsonPayload();
     test:assertEquals(payload.data.id, FAILED_SCAN_ID);
     test:assertEquals(payload.data.status, "failed");
-    // Scanner diagnostics belong in internal logs, not public responses.
     test:assertFalse(
             payload.toJsonString().includes("internal scanner diagnostic")
     );
@@ -616,8 +612,6 @@ function postScan(string target, int startPort, int endPort, boolean authorized)
     return apiClient->/api/v1/scans.post(requestBody);
 }
 
-// All integration failures must preserve the stable public envelope and
-// correlation ID without returning the scanner's diagnostic text.
 function assertSafeError(http:Response response, int expectedStatus,
         string expectedCode, string forbiddenText) returns error? {
     test:assertEquals(response.statusCode, expectedStatus);

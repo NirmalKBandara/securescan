@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getSession } from "@/lib/auth/session";
-import { GET, POST } from "./route";
+import { DELETE, GET, POST } from "./route";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/session", () => ({ getSession: vi.fn() }));
@@ -144,6 +144,32 @@ describe("authenticated API Manager proxy", () => {
       error: { code: "REQUEST_TOO_LARGE" },
     });
     expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("forwards allowed-target disable requests through API Manager", async () => {
+    const upstream = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      data: { id: "target-123", enabled: false },
+    }), {
+      headers: { "Content-Type": "application/json" },
+      status: 200,
+    }));
+    vi.stubGlobal("fetch", upstream);
+
+    const response = await DELETE(
+      new NextRequest(
+        "http://localhost:3000/backend/api/v1/admin/allowed-targets/target-123",
+        { method: "DELETE" },
+      ),
+      context(["api", "v1", "admin", "allowed-targets", "target-123"]),
+    );
+
+    expect(response.status).toBe(200);
+    const [url, init] = upstream.mock.calls[0] as [URL, RequestInit];
+    expect(url.toString()).toBe(
+      "https://localhost:8243/securescan/v1/api/v1/admin/allowed-targets/target-123",
+    );
+    expect(init.method).toBe("DELETE");
   });
 
   it("returns a predictable timeout envelope", async () => {

@@ -55,7 +55,7 @@ function authenticateGatewayIdentity(string suppliedSecret, string suppliedSubje
 
     boolean user = false;
     boolean admin = false;
-    foreach string rawRole in re`,`.split(suppliedRoles) {
+    foreach string rawRole in re `,`.split(suppliedRoles) {
         string role = rawRole.trim();
         user = user || role == USER_ROLE;
         admin = admin || role == ADMIN_ROLE;
@@ -68,6 +68,10 @@ function authenticateGatewayIdentity(string suppliedSecret, string suppliedSubje
 
 function canAccessOwner(AuthContext context, string ownerSubject) returns boolean {
     return context.admin || context.subject == ownerSubject;
+}
+
+function requireAdmin(AuthContext context, string requestId) returns ForbiddenError? {
+    return context.admin ? () : forbidden(requestId);
 }
 
 function authenticationRequired(string requestId) returns UnauthorizedError {

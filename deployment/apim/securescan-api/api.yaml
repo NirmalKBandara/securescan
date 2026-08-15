@@ -2,7 +2,7 @@ type: api
 version: v4.5.0
 data:
   name: SecureScanAPI
-  description: Authenticated SecureScan scan submission, status, and history API.
+  description: Authenticated scan workflows and admin-only allowed-target management.
   context: /securescan
   version: v1
   provider: admin
@@ -36,6 +36,7 @@ data:
     accessControlAllowMethods:
       - GET
       - POST
+      - DELETE
       - OPTIONS
   mediationPolicies:
     - name: securescan-identity-in

@@ -41,7 +41,9 @@ BEGIN
         'audit_logs_request_idx',
         'audit_logs_scan_job_idx',
         'audit_logs_allowed_target_idx',
-        'audit_logs_scan_lifecycle_uq'
+        'audit_logs_scan_lifecycle_uq',
+        'audit_logs_allowed_target_creation_uq',
+        'audit_logs_allowed_target_disable_uq'
     ] LOOP
         IF to_regclass('public.' || expected_index) IS NULL THEN
             RAISE EXCEPTION 'missing expected index: %', expected_index;
@@ -90,7 +92,9 @@ BEGIN
         'audit_logs_outcome_ck',
         'audit_logs_metadata_object_ck',
         'audit_logs_scan_event_shape_ck',
-        'audit_logs_scan_metadata_ck'
+        'audit_logs_scan_metadata_ck',
+        'audit_logs_allowed_target_event_shape_ck',
+        'audit_logs_allowed_target_metadata_ck'
     ] LOOP
         IF NOT EXISTS (
             SELECT 1
@@ -109,8 +113,8 @@ $verification$;
 
 DO $verification$
 BEGIN
-    IF (SELECT count(*) FROM schema_migrations) <> 4 THEN
-        RAISE EXCEPTION 'expected exactly four applied migrations';
+    IF (SELECT count(*) FROM schema_migrations) <> 5 THEN
+        RAISE EXCEPTION 'expected exactly five applied migrations';
     END IF;
 
     IF (SELECT count(*) FROM allowed_targets
@@ -551,6 +555,129 @@ BEGIN
         WHERE id = '20000000-0000-4000-8000-000000000032') <> 'RUNNING' THEN
         RAISE EXCEPTION 'audit failure did not roll back lifecycle update';
     END IF;
+END
+$verification$;
+
+ROLLBACK;
+
+-- Day 30 allowed-target administration and immutable attribution
+BEGIN;
+
+INSERT INTO allowed_targets (
+    id, target_kind, hostname_normalized, scope, start_port, end_port,
+    created_by_subject
+) VALUES (
+    '10000000-0000-4000-8000-000000000030', 'HOSTNAME',
+    'admin.dev.example', 'GLOBAL', 80, 443, 'subject:admin'
+);
+
+INSERT INTO allowed_targets (
+    id, target_kind, target_cidr, scope, created_by_subject
+) VALUES
+(
+    '10000000-0000-4000-8000-000000000031', 'IP',
+    '192.0.2.30/32', 'GLOBAL', 'subject:admin'
+), (
+    '10000000-0000-4000-8000-000000000032', 'CIDR',
+    '2001:db8::/48', 'GLOBAL', 'subject:admin'
+);
+
+INSERT INTO audit_logs (
+    id, actor_type, actor_subject, action, outcome, request_id,
+    allowed_target_id, metadata
+) VALUES
+    ('40000000-0000-4000-8000-000000000050', 'ADMIN', 'subject:admin',
+     'ALLOW_TARGET_CREATED', 'SUCCESS',
+     '50000000-0000-4000-8000-000000000050',
+     '10000000-0000-4000-8000-000000000030',
+     '{"targetKind":"HOSTNAME","target":"admin.dev.example"}'),
+    ('40000000-0000-4000-8000-000000000051', 'ADMIN', 'subject:admin',
+     'ALLOW_TARGET_CREATED', 'SUCCESS',
+     '50000000-0000-4000-8000-000000000051',
+     '10000000-0000-4000-8000-000000000031',
+     '{"targetKind":"IP","target":"192.0.2.30"}'),
+    ('40000000-0000-4000-8000-000000000052', 'ADMIN', 'subject:admin',
+     'ALLOW_TARGET_CREATED', 'SUCCESS',
+     '50000000-0000-4000-8000-000000000052',
+     '10000000-0000-4000-8000-000000000032',
+     '{"targetKind":"CIDR","target":"2001:db8::/48"}');
+
+UPDATE allowed_targets
+   SET enabled = false, updated_at = CURRENT_TIMESTAMP
+ WHERE id = '10000000-0000-4000-8000-000000000030';
+
+INSERT INTO audit_logs (
+    id, actor_type, actor_subject, action, outcome, request_id,
+    allowed_target_id, metadata
+) VALUES (
+    '40000000-0000-4000-8000-000000000053', 'ADMIN', 'subject:admin',
+    'ALLOW_TARGET_DISABLED', 'SUCCESS',
+    '50000000-0000-4000-8000-000000000053',
+    '10000000-0000-4000-8000-000000000030', '{"enabled":false}'
+);
+
+DO $verification$
+BEGIN
+    IF (SELECT count(*) FROM allowed_targets
+         WHERE id IN (
+             '10000000-0000-4000-8000-000000000030',
+             '10000000-0000-4000-8000-000000000031',
+             '10000000-0000-4000-8000-000000000032'
+         )) <> 3 THEN
+        RAISE EXCEPTION 'hostname, exact IP, and CIDR targets were not stored';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM allowed_targets
+         WHERE id = '10000000-0000-4000-8000-000000000031'
+           AND target_kind = 'IP' AND masklen(target_cidr) = 32
+    ) THEN
+        RAISE EXCEPTION 'exact IP target was not stored as a host CIDR';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM audit_logs
+         WHERE allowed_target_id IN (
+             '10000000-0000-4000-8000-000000000030',
+             '10000000-0000-4000-8000-000000000031',
+             '10000000-0000-4000-8000-000000000032'
+         )
+           AND (actor_type <> 'ADMIN' OR actor_subject <> 'subject:admin'
+                OR request_id IS NULL OR occurred_at IS NULL)
+    ) THEN
+        RAISE EXCEPTION 'allowed-target audit attribution is incomplete';
+    END IF;
+    IF (SELECT count(*) FROM audit_logs
+         WHERE allowed_target_id = '10000000-0000-4000-8000-000000000030') <> 2
+       OR (SELECT enabled FROM allowed_targets
+            WHERE id = '10000000-0000-4000-8000-000000000030') THEN
+        RAISE EXCEPTION 'allowed-target disable was not audited';
+    END IF;
+END
+$verification$;
+
+DO $verification$
+BEGIN
+    BEGIN
+        INSERT INTO audit_logs (
+            id, actor_type, actor_subject, action, outcome, request_id,
+            allowed_target_id, metadata
+        ) VALUES (
+            '40000000-0000-4000-8000-000000000054', 'USER', 'subject:user',
+            'ALLOW_TARGET_DISABLED', 'SUCCESS',
+            '50000000-0000-4000-8000-000000000054',
+            '10000000-0000-4000-8000-000000000032', '{"enabled":false}'
+        );
+        RAISE EXCEPTION 'non-admin allowed-target audit event was accepted';
+    EXCEPTION
+        WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        DELETE FROM allowed_targets
+         WHERE id = '10000000-0000-4000-8000-000000000032';
+        RAISE EXCEPTION 'audited allowed target was hard deleted';
+    EXCEPTION
+        WHEN foreign_key_violation THEN NULL;
+    END;
 END
 $verification$;
 

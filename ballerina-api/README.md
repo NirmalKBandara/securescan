@@ -46,6 +46,8 @@ local environment:
 ```toml
 listenerPort = 9090
 serviceName = "securescan-api"
+maxPortsPerScan = 1000
+maxRequestBodyBytes = 4096
 authenticationEnabled = true
 gatewaySharedSecret = "replace-with-at-least-32-random-characters"
 
@@ -62,7 +64,7 @@ databasePort = 5432
 databaseName = "securescan_dev"
 databaseUser = "securescan"
 databasePassword = "securescan_dev_only"
-maxActiveScansPerOwner = 5
+maxActiveScansPerOwner = 1
 dispatchLeaseSeconds = 15
 reconciliationIntervalSeconds = 5
 ```
@@ -160,9 +162,15 @@ Validation or policy failures from Go become durable `FAILED`/`BLOCKED` jobs;
 transient scanner unavailability or capacity pressure leaves the job queued for
 recovery. A running scanner job that permanently disappears becomes `FAILED`.
 
-At most `maxActiveScansPerOwner` `QUEUED`/`RUNNING` jobs may exist for one
-owner. Admission is serialized in PostgreSQL, and excess requests return `429`
-with `JOB_LIMIT_REACHED` without creating a row.
+Exactly one `QUEUED`/`RUNNING` job may exist for one owner. Admission is
+serialized in PostgreSQL, and excess requests return `429` with
+`JOB_LIMIT_REACHED` without creating a row. Startup rejects any
+`maxActiveScansPerOwner` value other than `1`, so configuration cannot weaken
+this application-level limit.
+
+Each request may cover at most 1,000 ports and its JSON body may contain at
+most 4,096 bytes. `maxPortsPerScan` and `maxRequestBodyBytes` may tighten these
+limits, but startup rejects values above those hard caps.
 
 `dispatchLeaseSeconds` must remain longer than `scannerResponseTimeout`, and
 `reconciliationIntervalSeconds` must be positive. Invalid asynchronous

@@ -14,6 +14,7 @@ servers:
     description: Local WSO2 API Manager Gateway
 tags:
   - name: Scans
+  - name: Allowed Targets
 security:
   - oauth2: [securescan:scan]
 paths:
@@ -138,6 +139,111 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/admin/allowed-targets:
+    get:
+      tags: [Allowed Targets]
+      operationId: listAllowedTargets
+      summary: List globally allowed scan targets
+      security:
+        - oauth2: [securescan:admin]
+      parameters:
+        - name: includeDisabled
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+      responses:
+        '200':
+          description: Bounded allowed-target list
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllowedTargetListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    post:
+      tags: [Allowed Targets]
+      operationId: createAllowedTarget
+      summary: Add a globally allowed exact hostname, IP, or CIDR
+      security:
+        - oauth2: [securescan:admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAllowedTargetRequest'
+      responses:
+        '201':
+          description: Allowed target created and audited
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllowedTargetResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/admin/allowed-targets/{targetId}:
+    delete:
+      tags: [Allowed Targets]
+      operationId: disableAllowedTarget
+      summary: Soft-disable an allowed target
+      description: The target and immutable audit history are retained.
+      security:
+        - oauth2: [securescan:admin]
+      parameters:
+        - name: targetId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Allowed target disabled and audited
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllowedTargetResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 components:
   securitySchemes:
     oauth2:
@@ -149,11 +255,15 @@ components:
           tokenUrl: https://localhost:9443/oauth2/token
           scopes:
             securescan:scan: Create scans and read owner-authorized scan data.
+            securescan:admin: Manage the global allowed-target policy.
           x-scopes-mappings:
             securescan:scan:
               display-name: SecureScan scan access
+            securescan:admin:
+              display-name: SecureScan allowed-target administration
           x-scopes-bindings:
             securescan:scan: securescan-user,securescan-admin
+            securescan:admin: securescan-admin
   headers:
     RequestId:
       description: Correlation identifier shared with the response envelope.
@@ -231,6 +341,15 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     PayloadTooLarge:
       description: Request body exceeds the 4,096-byte API limit
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: An enabled allowed target already has the same value and port range
       headers:
         X-Request-ID:
           $ref: '#/components/headers/RequestId'
@@ -369,6 +488,86 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/ScanHistoryItem'
+            pageSize:
+              type: integer
+              minimum: 1
+              maximum: 100
+    CreateAllowedTargetRequest:
+      type: object
+      additionalProperties: false
+      required: [targetKind, target]
+      properties:
+        targetKind:
+          type: string
+          enum: [HOSTNAME, IP, CIDR]
+        target:
+          type: string
+          minLength: 1
+          maxLength: 253
+        startPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        endPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+          description: Required with startPort and must be greater than or equal to it.
+    AllowedTarget:
+      type: object
+      additionalProperties: false
+      required:
+        [id, targetKind, target, enabled, createdBySubject, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        targetKind:
+          type: string
+          enum: [HOSTNAME, IP, CIDR]
+        target:
+          type: string
+        startPort:
+          type: integer
+        endPort:
+          type: integer
+        enabled:
+          type: boolean
+        createdBySubject:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AllowedTargetResponse:
+      type: object
+      additionalProperties: false
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: '#/components/schemas/AllowedTarget'
+    AllowedTargetListResponse:
+      type: object
+      additionalProperties: false
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          additionalProperties: false
+          required: [items, pageSize]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/AllowedTarget'
             pageSize:
               type: integer
               minimum: 1

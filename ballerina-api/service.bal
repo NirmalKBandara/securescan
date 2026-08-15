@@ -1,7 +1,7 @@
 import ballerina/http;
 import ballerina/lang.'string;
-import ballerina/log;
 import ballerina/lang.runtime as runtime;
+import ballerina/log;
 import ballerina/uuid;
 
 configurable int listenerPort = 9090;
@@ -248,6 +248,150 @@ service / on new http:Listener(listenerPort) {
             body: {success: true, data: statusData}
         };
     }
+
+    resource function get api/v1/admin/'allowed\-targets(http:Request httpRequest,
+            boolean includeDisabled = false, int pageSize = 100)
+            returns AllowedTargetListOk|BadRequestError|ServiceUnavailableError|
+            UnauthorizedError|ForbiddenError {
+        string requestId = uuid:createType4AsString();
+        AuthContext|UnauthorizedError|ForbiddenError authenticated =
+            authenticateRequest(httpRequest, requestId);
+        AuthContext authContext;
+        if authenticated is AuthContext {
+            authContext = authenticated;
+        } else {
+            return authenticated;
+        }
+        ForbiddenError? adminError = requireAdmin(authContext, requestId);
+        if adminError is ForbiddenError {
+            return adminError;
+        }
+        if pageSize < 1 || pageSize > 100 {
+            return badRequest(INVALID_REQUEST,
+                    "Page size must be between 1 and 100",
+                    {"field": "pageSize", min: 1, max: 100}, requestId);
+        }
+        PersistedAllowedTarget[]|error loaded =
+            loadAllowedTargets(includeDisabled, pageSize);
+        if loaded is error {
+            log:printError("Unable to load allowed targets", loaded,
+                    requestId = requestId);
+            return persistenceUnavailable(requestId);
+        }
+        AllowedTargetData[] items = from PersistedAllowedTarget item in loaded
+            select allowedTargetData(item);
+        AllowedTargetListData data = {items: items, pageSize: pageSize};
+        return {headers: {requestId: requestId}, body: {success: true, data: data}};
+    }
+
+    resource function post api/v1/admin/'allowed\-targets(http:Request httpRequest)
+            returns AllowedTargetCreated|BadRequestError|PayloadTooLargeError|
+            ConflictError|ServiceUnavailableError|UnauthorizedError|ForbiddenError {
+        string requestId = uuid:createType4AsString();
+        AuthContext|UnauthorizedError|ForbiddenError authenticated =
+            authenticateRequest(httpRequest, requestId);
+        AuthContext authContext;
+        if authenticated is AuthContext {
+            authContext = authenticated;
+        } else {
+            return authenticated;
+        }
+        ForbiddenError? adminError = requireAdmin(authContext, requestId);
+        if adminError is ForbiddenError {
+            return adminError;
+        }
+        byte[]|http:ClientError rawPayload = httpRequest.getBinaryPayload();
+        if rawPayload is http:ClientError {
+            return badRequest(INVALID_REQUEST, "Request body is unreadable", {},
+                                                                             requestId);
+        }
+        CreateAllowedTargetRequest|BadRequestError|PayloadTooLargeError parsed =
+            parseAllowedTargetRequest(rawPayload, requestId);
+        CreateAllowedTargetRequest request;
+        if parsed is CreateAllowedTargetRequest {
+            request = parsed;
+        } else {
+            return parsed;
+        }
+        string|BadRequestError normalized =
+            validateAllowedTargetRequest(request, requestId);
+        if normalized is BadRequestError {
+            return normalized;
+        }
+        if request.targetKind != "HOSTNAME" {
+            boolean|error networkValid =
+                validateNetworkAllowedTarget(normalized, request.targetKind);
+            if networkValid is error {
+                return persistenceUnavailable(requestId);
+            }
+            if !networkValid {
+                return badRequest(INVALID_TARGET,
+                        "Target does not match the selected target kind",
+                        {"field": "target"}, requestId);
+            }
+        }
+        string targetId = uuid:createType4AsString();
+        AllowedTargetInsertOutcome|error inserted = insertAllowedTarget(targetId,
+                authContext.subject, request, normalized, requestId);
+        if inserted is error {
+            log:printError("Unable to create allowed target", inserted,
+                    requestId = requestId);
+            return persistenceUnavailable(requestId);
+        }
+        if inserted == "ALREADY_EXISTS" {
+            return allowedTargetConflict(requestId);
+        }
+        PersistedAllowedTarget|error? loaded = loadAllowedTarget(targetId);
+        if loaded is error || loaded is () {
+            return persistenceUnavailable(requestId);
+        }
+        return {
+            headers: {requestId: requestId},
+            body: {success: true, data: allowedTargetData(loaded)}
+        };
+    }
+
+    resource function delete api/v1/admin/'allowed\-targets/[string targetId](
+            http:Request httpRequest)
+            returns AllowedTargetOk|BadRequestError|NotFoundError|
+            ServiceUnavailableError|UnauthorizedError|ForbiddenError {
+        string requestId = uuid:createType4AsString();
+        AuthContext|UnauthorizedError|ForbiddenError authenticated =
+            authenticateRequest(httpRequest, requestId);
+        AuthContext authContext;
+        if authenticated is AuthContext {
+            authContext = authenticated;
+        } else {
+            return authenticated;
+        }
+        ForbiddenError? adminError = requireAdmin(authContext, requestId);
+        if adminError is ForbiddenError {
+            return adminError;
+        }
+        if !uuid:validate(targetId) {
+            return badRequest(INVALID_REQUEST,
+                    "Allowed target ID must be a valid UUID",
+                    {"field": "targetId"}, requestId);
+        }
+        AllowedTargetDisableOutcome|error disabled = disableAllowedTarget(targetId,
+                authContext.subject, requestId);
+        if disabled is error {
+            log:printError("Unable to disable allowed target", disabled,
+                    requestId = requestId, allowedTargetId = targetId);
+            return persistenceUnavailable(requestId);
+        }
+        if disabled == "NOT_FOUND" {
+            return allowedTargetNotFound(requestId);
+        }
+        PersistedAllowedTarget|error? loaded = loadAllowedTarget(targetId);
+        if loaded is error || loaded is () {
+            return persistenceUnavailable(requestId);
+        }
+        return {
+            headers: {requestId: requestId},
+            body: {success: true, data: allowedTargetData(loaded)}
+        };
+    }
 }
 
 function dispatchQueuedScanInBackground(string publicScanId, string ownerSubject,
@@ -291,7 +435,7 @@ function dispatchQueuedScan(string publicScanId, string ownerSubject,
     }
     ScanUpdateOutcome|error dispatched =
         markScanDispatched(publicScanId, ownerSubject, scannerResult.id,
-                leaseToken, requestId);
+            leaseToken, requestId);
     if dispatched is error {
         return dispatched;
     }
@@ -383,7 +527,7 @@ function getPersistedScanStatus(string scanId, string actorSubject, boolean admi
                 }
                 ScanUpdateOutcome|error failed =
                     markScanSynchronizationFailed(job.id, job.ownerSubject,
-                            scannerResult.code, requestId);
+                        scannerResult.code, requestId);
                 if failed is error {
                     return persistenceUnavailable(requestId);
                 }
@@ -397,7 +541,7 @@ function getPersistedScanStatus(string scanId, string actorSubject, boolean admi
             if !scannerResponseMatchesJob(job, scannerId, scannerResult) {
                 ScanUpdateOutcome|error failed =
                     markScanSynchronizationFailed(job.id, job.ownerSubject,
-                            INTERNAL_ERROR, requestId);
+                        INTERNAL_ERROR, requestId);
                 if failed is error {
                     return persistenceUnavailable(requestId);
                 }
@@ -548,7 +692,7 @@ function persistenceUnavailable(string requestId) returns ServiceUnavailableErro
             success: false,
             'error: {
                 code: PERSISTENCE_UNAVAILABLE,
-                message: "Scan persistence is temporarily unavailable",
+                message: "SecureScan persistence is temporarily unavailable",
                 requestId: requestId
             }
         }
@@ -625,6 +769,141 @@ function parseCreateScanRequest(byte[] rawPayload, string requestId)
                 "Request body does not match the scan contract", {}, requestId);
     }
     return boundRequest;
+}
+
+function parseAllowedTargetRequest(byte[] rawPayload, string requestId)
+        returns CreateAllowedTargetRequest|BadRequestError|PayloadTooLargeError {
+    if rawPayload.length() > maxRequestBodyBytes {
+        return requestTooLarge(requestId);
+    }
+    string|error textPayload = 'string:fromBytes(rawPayload);
+    if textPayload is error {
+        return badRequest(INVALID_REQUEST, "Request body must be UTF-8 JSON", {},
+                                                                              requestId);
+    }
+    json|error payload = textPayload.fromJsonString();
+    if payload is error {
+        return badRequest(INVALID_REQUEST,
+                "Request body must contain valid JSON", {}, requestId);
+    }
+    CreateAllowedTargetRequest|error boundRequest = payload.cloneWithType();
+    if boundRequest is error {
+        return badRequest(INVALID_REQUEST,
+                "Request body does not match the allowed-target contract", {},
+                                                                           requestId);
+    }
+    return boundRequest;
+}
+
+function validateAllowedTargetRequest(CreateAllowedTargetRequest request,
+        string requestId) returns string|BadRequestError {
+    string target = request.target.trim();
+    if target == "" || target.length() > 253 {
+        return badRequest(INVALID_TARGET,
+                "Target must contain between 1 and 253 characters",
+                {"field": "target"}, requestId);
+    }
+    if (request.startPort is int) != (request.endPort is int) {
+        return badRequest(INVALID_PORT_RANGE,
+                "Both startPort and endPort are required when restricting ports",
+                {"field": "ports"}, requestId);
+    }
+    int? possibleStartPort = request.startPort;
+    int? possibleEndPort = request.endPort;
+    if possibleStartPort is int && possibleEndPort is int {
+        int startPort = possibleStartPort;
+        int endPort = possibleEndPort;
+        if startPort < 1 || endPort > 65535 || startPort > endPort {
+            return badRequest(INVALID_PORT_RANGE,
+                    "Allowed-target ports must form a valid inclusive range",
+                    {startPort: startPort, endPort: endPort}, requestId);
+        }
+    }
+    if request.targetKind == "HOSTNAME" {
+        string hostname = 'string:toLowerAscii(target);
+        if !validExactHostname(hostname) {
+            return badRequest(INVALID_TARGET,
+                    "Target must be an exact DNS hostname",
+                    {"field": "target"}, requestId);
+        }
+        return hostname;
+    }
+    if request.targetKind == "IP" && target.includes("/") {
+        return badRequest(INVALID_TARGET,
+                "Exact IP targets cannot contain a prefix length",
+                {"field": "target"}, requestId);
+    }
+    if request.targetKind == "CIDR" && !target.includes("/") {
+        return badRequest(INVALID_TARGET,
+                "CIDR targets require an explicit prefix length",
+                {"field": "target"}, requestId);
+    }
+    return target;
+}
+
+function validExactHostname(string hostname) returns boolean {
+    if hostname.startsWith(".") || hostname.endsWith(".") ||
+            hostname.includes("..") {
+        return false;
+    }
+    string[] labels = re `\.`.split(hostname);
+    foreach string label in labels {
+        if label.length() < 1 || label.length() > 63 ||
+                label.startsWith("-") || label.endsWith("-") {
+            return false;
+        }
+        foreach int codePoint in label.toCodePointInts() {
+            boolean allowed = (codePoint >= 97 && codePoint <= 122) ||
+                (codePoint >= 48 && codePoint <= 57) || codePoint == 45;
+            if !allowed {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+function allowedTargetData(PersistedAllowedTarget target)
+        returns AllowedTargetData {
+    return {
+        id: target.id,
+        targetKind: <AllowedTargetKind>target.targetKind,
+        target: target.target,
+        startPort: target.startPort,
+        endPort: target.endPort,
+        enabled: target.enabled,
+        createdBySubject: target.createdBySubject,
+        createdAt: target.createdAt,
+        updatedAt: target.updatedAt
+    };
+}
+
+function allowedTargetConflict(string requestId) returns ConflictError {
+    return {
+        headers: {requestId: requestId},
+        body: {
+            success: false,
+            'error: {
+                code: ALLOWED_TARGET_EXISTS,
+                message: "An enabled allowed target already has this value and port range",
+                requestId: requestId
+            }
+        }
+    };
+}
+
+function allowedTargetNotFound(string requestId) returns NotFoundError {
+    return {
+        headers: {requestId: requestId},
+        body: {
+            success: false,
+            'error: {
+                code: ALLOWED_TARGET_NOT_FOUND,
+                message: "Enabled allowed target not found",
+                requestId: requestId
+            }
+        }
+    };
 }
 
 function mapCreateFailure(ScannerFailure failure, string requestId)

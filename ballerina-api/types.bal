@@ -18,6 +18,8 @@ public const string INTERNAL_ERROR = "INTERNAL_ERROR";
 public const string AUTHENTICATION_REQUIRED = "AUTHENTICATION_REQUIRED";
 public const string FORBIDDEN = "FORBIDDEN";
 public const string REQUEST_TOO_LARGE = "REQUEST_TOO_LARGE";
+public const string ALLOWED_TARGET_EXISTS = "ALLOWED_TARGET_EXISTS";
+public const string ALLOWED_TARGET_NOT_FOUND = "ALLOWED_TARGET_NOT_FOUND";
 
 public type ApiError record {|
     string code;
@@ -113,6 +115,32 @@ public type ScanHistoryData record {|
     int pageSize;
 |};
 
+public type AllowedTargetKind "HOSTNAME"|"IP"|"CIDR";
+
+public type CreateAllowedTargetRequest record {|
+    AllowedTargetKind targetKind;
+    string target;
+    int? startPort = ();
+    int? endPort = ();
+|};
+
+public type AllowedTargetData record {|
+    string id;
+    AllowedTargetKind targetKind;
+    string target;
+    int? startPort = ();
+    int? endPort = ();
+    boolean enabled;
+    string createdBySubject;
+    string createdAt;
+    string updatedAt;
+|};
+
+public type AllowedTargetListData record {|
+    AllowedTargetData[] items;
+    int pageSize;
+|};
+
 public type CreateScanAccepted record {|
     *http:Accepted;
     ResponseHeaders headers;
@@ -126,6 +154,24 @@ public type ScanStatusOk record {|
 |};
 
 public type ScanHistoryOk record {|
+    *http:Ok;
+    ResponseHeaders headers;
+    SuccessResponse body;
+|};
+
+public type AllowedTargetOk record {|
+    *http:Ok;
+    ResponseHeaders headers;
+    SuccessResponse body;
+|};
+
+public type AllowedTargetCreated record {|
+    *http:Created;
+    ResponseHeaders headers;
+    SuccessResponse body;
+|};
+
+public type AllowedTargetListOk record {|
     *http:Ok;
     ResponseHeaders headers;
     SuccessResponse body;
@@ -151,6 +197,12 @@ public type PayloadTooLargeError record {|
 
 public type NotFoundError record {|
     *http:NotFound;
+    ResponseHeaders headers;
+    ErrorResponse body;
+|};
+
+public type ConflictError record {|
+    *http:Conflict;
     ResponseHeaders headers;
     ErrorResponse body;
 |};

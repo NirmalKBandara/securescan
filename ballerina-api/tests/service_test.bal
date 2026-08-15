@@ -388,7 +388,7 @@ function testSecurityLimitConfigurationCannotWeakenHardCaps() {
 function testGatewayIdentityRequiresSharedSecretAndApplicationRole() {
     AuthContext|UnauthorizedError|ForbiddenError user =
         authenticateGatewayIdentity("test-secret", "alice",
-                "everyone, securescan-user", "test-secret", "request-id");
+            "everyone, securescan-user", "test-secret", "request-id");
     test:assertTrue(user is AuthContext);
     if user is AuthContext {
         test:assertEquals(user.subject, "alice");
@@ -397,7 +397,7 @@ function testGatewayIdentityRequiresSharedSecretAndApplicationRole() {
 
     AuthContext|UnauthorizedError|ForbiddenError admin =
         authenticateGatewayIdentity("test-secret", "admin-subject",
-                "securescan-admin", "test-secret", "request-id");
+            "securescan-admin", "test-secret", "request-id");
     test:assertTrue(admin is AuthContext);
     if admin is AuthContext {
         test:assertTrue(admin.admin);
@@ -406,13 +406,63 @@ function testGatewayIdentityRequiresSharedSecretAndApplicationRole() {
 
     AuthContext|UnauthorizedError|ForbiddenError wrongSecret =
         authenticateGatewayIdentity("wrong", "alice", "securescan-user",
-                "test-secret", "request-id");
+            "test-secret", "request-id");
     test:assertTrue(wrongSecret is UnauthorizedError);
 
     AuthContext|UnauthorizedError|ForbiddenError unrelatedRole =
         authenticateGatewayIdentity("test-secret", "alice", "administrator",
-                "test-secret", "request-id");
+            "test-secret", "request-id");
     test:assertTrue(unrelatedRole is ForbiddenError);
+}
+
+@test:Config {}
+function testAllowedTargetAdministrationRequiresAdminRole() {
+    AuthContext user = {subject: "alice", admin: false};
+    AuthContext admin = {subject: "admin", admin: true};
+    test:assertTrue(requireAdmin(user, "request-id") is ForbiddenError);
+    test:assertEquals(requireAdmin(admin, "request-id"), ());
+}
+
+@test:Config {}
+function testAllowedTargetHostnameNormalizationAndValidation() {
+    CreateAllowedTargetRequest request = {
+        targetKind: "HOSTNAME",
+        target: "  Scan.Dev.Example  ",
+        startPort: 80,
+        endPort: 443
+    };
+    string|BadRequestError normalized =
+        validateAllowedTargetRequest(request, "request-id");
+    test:assertEquals(normalized, "scan.dev.example");
+
+    request.target = "wildcard.*.example";
+    test:assertTrue(validateAllowedTargetRequest(request, "request-id")
+            is BadRequestError);
+}
+
+@test:Config {}
+function testAllowedTargetKindAndPortShapeValidation() {
+    CreateAllowedTargetRequest exactIp = {
+        targetKind: "IP",
+        target: "192.0.2.10/32"
+    };
+    test:assertTrue(validateAllowedTargetRequest(exactIp, "request-id")
+            is BadRequestError);
+
+    CreateAllowedTargetRequest cidr = {
+        targetKind: "CIDR",
+        target: "192.0.2.0"
+    };
+    test:assertTrue(validateAllowedTargetRequest(cidr, "request-id")
+            is BadRequestError);
+
+    CreateAllowedTargetRequest incompletePorts = {
+        targetKind: "HOSTNAME",
+        target: "scan.dev.example",
+        startPort: 443
+    };
+    test:assertTrue(validateAllowedTargetRequest(incompletePorts, "request-id")
+            is BadRequestError);
 }
 
 @test:Config {}
@@ -497,7 +547,7 @@ function testCreateScanEnforcesOneThousandPortLimit() returns error? {
 @test:Config {}
 function testCreateScanParserRejectsOversizedBody() {
     string oversized = "";
-    foreach int _ in 1...4097 {
+    foreach int _ in 1 ... 4097 {
         oversized += "x";
     }
     CreateScanRequest|BadRequestError|PayloadTooLargeError parsed =

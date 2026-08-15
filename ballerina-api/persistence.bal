@@ -52,20 +52,41 @@ type PersistedScanHistoryItem record {|
     string updatedAt;
 |};
 
+type PersistedAllowedTarget record {|
+    string id;
+    string targetKind;
+    string target;
+    int? startPort = ();
+    int? endPort = ();
+    boolean enabled;
+    string createdBySubject;
+    string createdAt;
+    string updatedAt;
+|};
+
+type NetworkTargetValidation record {|
+    boolean valid;
+|};
+
 type LockedScanJob record {|
     string id;
 |};
 
 type ScanUpdateOutcome "APPLIED"|"UNCHANGED";
 
-type AuditActorType "USER"|"SERVICE";
+type AuditActorType "USER"|"ADMIN"|"SERVICE";
 
 type AuditAction "SCAN_REQUESTED"|"SCAN_BLOCKED"|"SCAN_STARTED"|
-    "SCAN_COMPLETED"|"SCAN_FAILED";
+    "SCAN_COMPLETED"|"SCAN_FAILED"|"ALLOW_TARGET_CREATED"|
+    "ALLOW_TARGET_UPDATED"|"ALLOW_TARGET_DISABLED";
 
 type AuditOutcome "SUCCESS"|"DENIED"|"FAILURE";
 
 type QueuedScanInsertOutcome "CREATED"|"LIMIT_REACHED";
+
+type AllowedTargetInsertOutcome "CREATED"|"ALREADY_EXISTS";
+
+type AllowedTargetDisableOutcome "DISABLED"|"NOT_FOUND";
 
 type ActiveScanCount record {|
     int activeCount;
@@ -175,8 +196,8 @@ function markScanDispatchFailed(string id, string ownerSubject, string failureCo
         if updateOutcome == "APPLIED" {
             json metadata = {failureCode: failureCode};
             check insertAuditEvent(db, "SERVICE", serviceName, ownerSubject,
-                    blocked ? "SCAN_BLOCKED" : "SCAN_FAILED",
-                    blocked ? "DENIED" : "FAILURE", requestId, id, metadata);
+                        blocked ? "SCAN_BLOCKED" : "SCAN_FAILED",
+                        blocked ? "DENIED" : "FAILURE", requestId, id, metadata);
         }
         check commit;
     }
@@ -250,7 +271,8 @@ function loadActiveScanJobs(int pageSize)
          WHERE status IN ('QUEUED', 'RUNNING')
          ORDER BY created_at, id
          LIMIT ${pageSize}`);
-    return check from PersistedScanJob row in rowStream select row;
+    return check from PersistedScanJob row in rowStream
+        select row;
 }
 
 function synchronizeScanJob(PersistedScanJob job, ScannerStatusResponse scanner,
@@ -269,7 +291,7 @@ function synchronizeScanJob(PersistedScanJob job, ScannerStatusResponse scanner,
 
     ScannerResult result = <ScannerResult>scanner.result;
     transaction {
-        
+
         stream<LockedScanJob, sql:Error?> lockStream = db->query(`
             SELECT id::text AS "id"
               FROM scan_jobs
@@ -419,6 +441,149 @@ function loadScanHistory(string ownerSubject, int pageSize)
              LIMIT ${pageSize}`);
     return check from PersistedScanHistoryItem historyItem in historyStream
         select historyItem;
+}
+
+function validateNetworkAllowedTarget(string target, AllowedTargetKind targetKind)
+        returns boolean|error {
+    postgresql:Client db = check getDatabaseClient();
+    stream<NetworkTargetValidation, sql:Error?> validationStream;
+    if targetKind == "IP" {
+        validationStream = db->query(`
+            SELECT (position('/' in ${target}) = 0
+                    AND pg_input_is_valid(${target}, 'inet')) AS "valid"`);
+    } else {
+        validationStream = db->query(`
+            SELECT (position('/' in ${target}) > 0
+                    AND pg_input_is_valid(${target}, 'cidr')) AS "valid"`);
+    }
+    NetworkTargetValidation[] rows = check
+        from NetworkTargetValidation row in validationStream
+    select row;
+    return rows.length() == 1 && rows[0].valid;
+}
+
+function insertAllowedTarget(string id, string actorSubject,
+        CreateAllowedTargetRequest request, string normalizedTarget,
+        string requestId) returns AllowedTargetInsertOutcome|error {
+    postgresql:Client db = check getDatabaseClient();
+    sql:ExecutionResult insert;
+    boolean created = false;
+    transaction {
+        if request.targetKind == "HOSTNAME" {
+            insert = check db->execute(`
+                INSERT INTO allowed_targets
+                    (id, target_kind, hostname_normalized, scope, start_port,
+                     end_port, created_by_subject)
+                VALUES (CAST(${id} AS uuid), 'HOSTNAME', ${normalizedTarget},
+                        'GLOBAL', ${request.startPort}, ${request.endPort},
+                        ${actorSubject})
+                ON CONFLICT DO NOTHING`);
+        } else {
+            AllowedTargetKind networkKind = request.targetKind;
+            insert = check db->execute(`
+                INSERT INTO allowed_targets
+                    (id, target_kind, target_cidr, scope, start_port, end_port,
+                     created_by_subject)
+                VALUES (CAST(${id} AS uuid), ${networkKind},
+                        CAST(${normalizedTarget} AS cidr), 'GLOBAL',
+                        ${request.startPort}, ${request.endPort}, ${actorSubject})
+                ON CONFLICT DO NOTHING`);
+        }
+        ScanUpdateOutcome outcome = check scanUpdateOutcome(insert);
+        if outcome == "APPLIED" {
+            json metadata = {
+                targetKind: request.targetKind,
+                target: normalizedTarget
+            };
+            check insertAllowedTargetAuditEvent(db, actorSubject,
+                    "ALLOW_TARGET_CREATED", requestId, id, metadata);
+            created = true;
+        }
+        check commit;
+    }
+    return created ? "CREATED" : "ALREADY_EXISTS";
+}
+
+function loadAllowedTargets(boolean includeDisabled, int pageSize)
+        returns PersistedAllowedTarget[]|error {
+    postgresql:Client db = check getDatabaseClient();
+    stream<PersistedAllowedTarget, sql:Error?> targetStream = db->query(`
+        SELECT id::text AS "id",
+               target_kind AS "targetKind",
+               CASE
+                   WHEN target_kind = 'HOSTNAME' THEN hostname_normalized
+                   ELSE target_cidr::text
+               END AS "target",
+               start_port AS "startPort", end_port AS "endPort",
+               enabled AS "enabled", created_by_subject AS "createdBySubject",
+               to_char(created_at AT TIME ZONE 'UTC',
+                       'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "createdAt",
+               to_char(updated_at AT TIME ZONE 'UTC',
+                       'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt"
+          FROM allowed_targets
+         WHERE (${includeDisabled} OR enabled)
+         ORDER BY created_at DESC, id DESC
+         LIMIT ${pageSize}`);
+    return check from PersistedAllowedTarget row in targetStream
+        select row;
+}
+
+function disableAllowedTarget(string id, string actorSubject, string requestId)
+        returns AllowedTargetDisableOutcome|error {
+    postgresql:Client db = check getDatabaseClient();
+    boolean changed = false;
+    transaction {
+        sql:ExecutionResult update = check db->execute(`
+            UPDATE allowed_targets
+               SET enabled = false, updated_at = CURRENT_TIMESTAMP
+             WHERE id = CAST(${id} AS uuid) AND enabled`);
+        ScanUpdateOutcome outcome = check scanUpdateOutcome(update);
+        if outcome == "APPLIED" {
+            check insertAllowedTargetAuditEvent(db, actorSubject,
+                    "ALLOW_TARGET_DISABLED", requestId, id, {enabled: false});
+            changed = true;
+        }
+        check commit;
+    }
+    return changed ? "DISABLED" : "NOT_FOUND";
+}
+
+function loadAllowedTarget(string id) returns PersistedAllowedTarget|error? {
+    postgresql:Client db = check getDatabaseClient();
+    stream<PersistedAllowedTarget, sql:Error?> targetStream = db->query(`
+        SELECT id::text AS "id",
+               target_kind AS "targetKind",
+               CASE
+                   WHEN target_kind = 'HOSTNAME' THEN hostname_normalized
+                   ELSE target_cidr::text
+               END AS "target",
+               start_port AS "startPort", end_port AS "endPort",
+               enabled AS "enabled", created_by_subject AS "createdBySubject",
+               to_char(created_at AT TIME ZONE 'UTC',
+                       'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "createdAt",
+               to_char(updated_at AT TIME ZONE 'UTC',
+                       'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt"
+          FROM allowed_targets
+         WHERE id = CAST(${id} AS uuid)`);
+    PersistedAllowedTarget[] rows = check
+        from PersistedAllowedTarget row in targetStream
+    select row;
+    return rows.length() == 0 ? () : rows[0];
+}
+
+function insertAllowedTargetAuditEvent(postgresql:Client db,
+        string actorSubject, AuditAction action, string requestId,
+        string allowedTargetId, json metadata) returns error? {
+    string eventId = uuid:createType4AsString();
+    string metadataJson = metadata.toJsonString();
+    _ = check db->execute(`
+        INSERT INTO audit_logs
+            (id, actor_type, actor_subject, action, outcome, request_id,
+             allowed_target_id, metadata)
+        VALUES (CAST(${eventId} AS uuid), 'ADMIN', ${actorSubject}, ${action},
+                'SUCCESS', CAST(${requestId} AS uuid),
+                CAST(${allowedTargetId} AS uuid),
+                CAST(${metadataJson} AS jsonb))`);
 }
 
 function getDatabaseClient() returns postgresql:Client|error {

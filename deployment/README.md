@@ -55,6 +55,9 @@ subscription, scope, identity, and browser verification are covered by the
 Install the Day 29 user/admin subscription policies with
 `apim/configure-throttling.sh`, then follow the authorized live checks in the
 [Day 29 throttling runbook](../docs/gateway/day-29-api-throttling.md).
+Re-import the API project for the Day 30 `securescan:admin` scope and
+allowed-target operations, then follow the
+[Day 30 administration runbook](../docs/security/day-30-allowed-target-administration.md).
 
 Override a host port without editing the Compose file:
 

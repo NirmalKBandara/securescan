@@ -135,6 +135,12 @@ independently enforces one active scan per owner, a 1,000-port maximum, a
 direct-backend authentication. Live WSO2 quota and recovery evidence remains
 pending on a Docker-capable host.
 
+The Day 30 allowed-target checkpoint is repository-complete. PostgreSQL stores
+distinct exact hostname, exact IP, and CIDR policy rules; administrator-only
+APIs list, create, and soft-disable them; and every change commits with
+immutable actor, request, target, and timestamp attribution. Live WSO2
+role/scope acceptance remains pending on a Docker-capable host.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -207,3 +213,7 @@ identity checks, and browser acceptance run are documented in
 The throttling tiers, layered application limits, API versioning policy, and
 live quota/bypass acceptance procedure are documented in
 [`Day 29 API throttling`](docs/gateway/day-29-api-throttling.md).
+
+The allowed-target data model, administrator API, transactional audit rules,
+and acceptance procedure are documented in
+[`Day 30 allowed-target administration`](docs/security/day-30-allowed-target-administration.md).

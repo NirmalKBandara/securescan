@@ -32,6 +32,8 @@ management are integrated.
 - Strict scanner ID, target, port-range, and result correlation checks
 - Owner-level active-job admission limits
 - `GET /api/v1/scans` history with bounded keyset pagination
+- Admin-only allowed-target list, create, and soft-disable resources
+- Exact hostname, exact IP, and CIDR policy persistence with transactional audit
 
 ## Requirements
 
@@ -201,6 +203,20 @@ send both values from the final item:
 subject. An exact `securescan-admin` identity may select another user with the
 `ownerSubject` query parameter; ordinary users receive `403` for that request.
 
+## Allowed-target administration
+
+`GET` and `POST /api/v1/admin/allowed-targets`, plus
+`DELETE /api/v1/admin/allowed-targets/{targetId}`, require an exact
+`securescan-admin` role. Normal users receive `403`. List responses are bounded
+to 100 rows; create accepts exact hostnames, exact IP addresses, or CIDR ranges
+with an optional paired port range. Delete is a soft disable so policy history
+and audit attribution remain intact.
+
+The API Manager contract additionally binds these operations to
+`securescan:admin`. See the
+[Day 30 runbook](../docs/security/day-30-allowed-target-administration.md) for
+request examples and acceptance checks.
+
 ## Persistence Guarantees
 
 Lifecycle writes are conditional on the current database status and report
@@ -233,6 +249,11 @@ Events store the owner/user subject, actor type and subject, request ID, public
 scan ID, and database timestamp. Metadata is limited by action to port bounds,
 a safe failure code, or result count and duration. Targets, addresses, raw
 scanner errors, request bodies, headers, credentials, and tokens are excluded.
+
+Allowed-target creation and disable operations use the same transaction rule.
+Their audit events identify the authenticated administrator, affected target,
+request, action, and database timestamp. PostgreSQL prevents non-admin event
+shapes and hard deletion of audited policy rows.
 
 Scan jobs progress through:
 

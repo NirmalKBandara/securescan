@@ -67,7 +67,9 @@ docker compose -f deployment/compose.yaml down --volumes
   prove result-batch atomicity, completion retry safety, owner scoping, stable
   result/history ordering, rejection of a port-zero scan, successful and blocked
   audit trails, duplicate-event rejection, safe metadata enforcement, and
-  rollback of a lifecycle update when its audit insert fails.
+  rollback of a lifecycle update when its audit insert fails. Day 30 fixtures
+  additionally prove hostname, exact-IP, and CIDR policy storage, admin-only
+  audit attribution, soft disable, and retention of audited target rows.
 
 Do not put `BEGIN` or `COMMIT` in a migration file; the runner supplies the
 transaction. Production index migrations should use a deployment runner that

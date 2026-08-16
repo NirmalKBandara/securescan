@@ -223,6 +223,12 @@ admission and again immediately before scanner dispatch. See the
 [Day 31 runbook](../docs/security/day-31-target-authorization.md) for matching,
 DNS safety, fail-closed startup, and blocked-attempt audit guarantees.
 
+The dispatch-time address set is passed to Go as an internal-only pin list. Go
+requires its current DNS set to match and the asynchronous scanner dials only
+those pins. Both layers allow at most 16 addresses. See the
+[Day 33 checkpoint](../docs/security/day-33-security-checkpoint.md) for the
+rebind, privilege-escalation, abuse-limit, and audit evidence.
+
 ## Administrator review API
 
 Exact administrators can use `GET /api/v1/admin/scans` with optional

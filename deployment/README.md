@@ -61,6 +61,9 @@ allowed-target operations, then follow the
 Re-import again after Day 32 to expose the admin scan, audit-log, and usage
 resources used by the dashboard; their role and UI checks are documented in the
 [Day 32 dashboard runbook](../docs/frontend/day-32-administrator-dashboard.md).
+Complete the live authorization, DNS-change, limit, and audit matrix in the
+[Day 33 security checkpoint](../docs/security/day-33-security-checkpoint.md)
+before beginning application-container deployment work.
 
 Override a host port without editing the Compose file:
 

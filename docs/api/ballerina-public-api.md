@@ -199,6 +199,12 @@ records, and a correlated scanner job that later disappears becomes `FAILED`.
 Scanner IDs, targets, port ranges, and completed result ranges must match the
 durable public job before synchronization is accepted.
 
+For hostname dispatch, Ballerina sends its authorized address set only to the
+internal Go service. That field is not part of the public request or response.
+Go verifies the DNS set and dials only those pins, closing the
+authorization-to-dial rebinding window while public results retain the original
+hostname and observed IP addresses.
+
 ## Audit guarantee
 
 Durable scan creation and every applied lifecycle transition append an audit

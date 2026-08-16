@@ -1,7 +1,8 @@
 import { env } from "@/lib/env";
 import type {
-  CreateScanRequest, ErrorEnvelope, ScanDetail, ScanHistory,
-  ScanSummary, SuccessEnvelope,
+  AdminScanList, AdminUsage, AllowedTarget, AllowedTargetList, AuditEventList,
+  CreateAllowedTargetRequest, CreateScanRequest, ErrorEnvelope, ScanDetail,
+  ScanHistory, ScanStatus, ScanSummary, SuccessEnvelope,
 } from "./types";
 
 export class SecureScanApiError extends Error {
@@ -59,5 +60,38 @@ export const scansApi = {
     if (options.cursorId) query.set("cursorId", options.cursorId);
     const suffix = query.size ? `?${query}` : "";
     return request<ScanHistory>(`/api/v1/scans${suffix}`, { signal: options.signal });
+  },
+};
+
+export const adminApi = {
+  scans(options: { ownerSubject?: string; status?: ScanStatus; signal?: AbortSignal } = {}) {
+    const query = new URLSearchParams({ pageSize: "100" });
+    if (options.ownerSubject) query.set("ownerSubject", options.ownerSubject);
+    if (options.status) query.set("status", options.status);
+    return request<AdminScanList>(`/api/v1/admin/scans?${query}`, { signal: options.signal });
+  },
+  usage(options: { signal?: AbortSignal } = {}) {
+    return request<AdminUsage>("/api/v1/admin/usage", { signal: options.signal });
+  },
+  auditLogs(options: { signal?: AbortSignal } = {}) {
+    return request<AuditEventList>("/api/v1/admin/audit-logs?pageSize=100", { signal: options.signal });
+  },
+  allowedTargets(options: { signal?: AbortSignal } = {}) {
+    return request<AllowedTargetList>(
+      "/api/v1/admin/allowed-targets?includeDisabled=true&pageSize=100",
+      { signal: options.signal },
+    );
+  },
+  createAllowedTarget(input: CreateAllowedTargetRequest) {
+    return request<AllowedTarget>("/api/v1/admin/allowed-targets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  },
+  disableAllowedTarget(id: string) {
+    return request<AllowedTarget>(`/api/v1/admin/allowed-targets/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
   },
 };

@@ -141,6 +141,53 @@ public type AllowedTargetListData record {|
     int pageSize;
 |};
 
+public type AdminScanItem record {|
+    string id;
+    string ownerSubject;
+    ScanJobStatus status;
+    string target;
+    int startPort;
+    int endPort;
+    string? failureCode = ();
+    string createdAt;
+    string updatedAt;
+|};
+
+public type AdminScanListData record {|
+    AdminScanItem[] items;
+    int pageSize;
+|};
+
+public type AuditEventData record {|
+    string id;
+    string occurredAt;
+    string actorType;
+    string? actorSubject = ();
+    string? ownerSubject = ();
+    string action;
+    string outcome;
+    string? requestId = ();
+    string? scanJobId = ();
+    string? allowedTargetId = ();
+    json metadata;
+|};
+
+public type AuditEventListData record {|
+    AuditEventData[] items;
+    int pageSize;
+|};
+
+public type AdminUsageData record {|
+    int totalUsers;
+    int totalScans;
+    int queuedScans;
+    int runningScans;
+    int completedScans;
+    int failedScans;
+    int blockedScans;
+    int enabledAllowedTargets;
+|};
+
 public type CreateScanAccepted record {|
     *http:Accepted;
     ResponseHeaders headers;
@@ -172,6 +219,24 @@ public type AllowedTargetCreated record {|
 |};
 
 public type AllowedTargetListOk record {|
+    *http:Ok;
+    ResponseHeaders headers;
+    SuccessResponse body;
+|};
+
+public type AdminScanListOk record {|
+    *http:Ok;
+    ResponseHeaders headers;
+    SuccessResponse body;
+|};
+
+public type AuditEventListOk record {|
+    *http:Ok;
+    ResponseHeaders headers;
+    SuccessResponse body;
+|};
+
+public type AdminUsageOk record {|
     *http:Ok;
     ResponseHeaders headers;
     SuccessResponse body;

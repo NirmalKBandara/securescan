@@ -146,11 +146,12 @@ func TestCreateScanRejectsInvalidRequests(t *testing.T) {
 
 func testConfig() appconfig.Config {
 	return appconfig.Config{
-		MaxPortsPerScan:    1000,
-		MaxConcurrentPorts: 100,
-		ScanTimeout:        time.Second,
-		MaxActiveScans:     100,
-		MaxRetainedJobs:    1000,
+		IsolatedDevelopment: true,
+		MaxPortsPerScan:     1000,
+		MaxConcurrentPorts:  100,
+		ScanTimeout:         time.Second,
+		MaxActiveScans:      100,
+		MaxRetainedJobs:     1000,
 	}
 }
 

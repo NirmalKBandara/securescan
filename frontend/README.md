@@ -130,6 +130,8 @@ Day 29 throttling, request limits, timeouts, and live acceptance are documented
 in `docs/gateway/day-29-api-throttling.md`.
 The administrator UI, API resources, and layered role boundary are documented
 in `docs/frontend/day-32-administrator-dashboard.md`.
+Day 33 identity-header spoofing, exact-role, DNS pinning, and security-checkpoint
+evidence is documented in `docs/security/day-33-security-checkpoint.md`.
 
 Do not commit `.env.local`, tokens, or identity-provider secrets. Only
 `NEXT_PUBLIC_*` values intended for browsers belong in this application.

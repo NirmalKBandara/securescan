@@ -5,6 +5,7 @@ import "time"
 // Contains the user-configurable scan settings.
 type ScanConfig struct {
 	Target              string
+	AuthorizedAddresses []string
 	StartPort           int
 	EndPort             int
 	Timeout             time.Duration

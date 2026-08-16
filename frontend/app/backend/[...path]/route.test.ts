@@ -21,6 +21,8 @@ const context = (path: string[]) => ({ params: Promise.resolve({ path }) });
 describe("authenticated API Manager proxy", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    delete process.env.BALLERINA_API_BASE_URL;
+    delete process.env.SECURESCAN_API_GATEWAY_SECRET;
     process.env.SECURESCAN_API_MODE = "gateway";
     process.env.API_MANAGER_GATEWAY_URL = "https://localhost:8243/securescan/v1";
     vi.mocked(getSession).mockResolvedValue(session);
@@ -60,6 +62,39 @@ describe("authenticated API Manager proxy", () => {
     expect(headers.has("X-SecureScan-Subject")).toBe(false);
     expect(headers.has("X-SecureScan-Roles")).toBe(false);
     expect(headers.has("X-SecureScan-Gateway-Secret")).toBe(false);
+  });
+
+  it("ignores browser-supplied identity headers in direct development mode", async () => {
+    process.env.SECURESCAN_API_MODE = "direct";
+    process.env.BALLERINA_API_BASE_URL = "http://localhost:9090";
+    process.env.SECURESCAN_API_GATEWAY_SECRET = "12345678901234567890123456789012";
+    const upstream = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      data: { items: [], pageSize: 20 },
+    }), {
+      headers: { "Content-Type": "application/json" },
+      status: 200,
+    }));
+    vi.stubGlobal("fetch", upstream);
+
+    const response = await GET(new NextRequest(
+      "http://localhost:3000/backend/api/v1/scans",
+      {
+        headers: {
+          "X-SecureScan-Subject": "attacker-selected-admin",
+          "X-SecureScan-Roles": "securescan-admin",
+          "X-SecureScan-Gateway-Secret": "attacker-secret",
+        },
+      },
+    ), context(["api", "v1", "scans"]));
+
+    expect(response.status).toBe(200);
+    const headers = new Headers((upstream.mock.calls[0] as [URL, RequestInit])[1].headers);
+    expect(headers.get("X-SecureScan-Subject")).toBe(session.subject);
+    expect(headers.get("X-SecureScan-Roles")).toBe("securescan-user");
+    expect(headers.get("X-SecureScan-Gateway-Secret")).toBe(
+      "12345678901234567890123456789012",
+    );
   });
 
   it("normalizes non-envelope API Manager failures for the frontend", async () => {

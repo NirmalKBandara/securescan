@@ -134,8 +134,10 @@ service / on new http:Listener(listenerPort) {
             };
         }
 
+        // The persistence-free path is restricted to the isolated contract
+        // topology and keeps Go's local resolve-validate-dial flow.
         ScannerCreateResponse|ScannerFailure scannerResult =
-            createScannerJob(request, requestId, publicScanId);
+            createScannerJob(request, [], requestId, publicScanId);
         if scannerResult is ScannerFailure {
             log:printWarn("Scanner create request failed",
                     requestId = requestId, failureCode = scannerResult.code);
@@ -591,6 +593,7 @@ function dispatchQueuedScan(string publicScanId, string ownerSubject,
     if claim == "UNCHANGED" {
         return;
     }
+    string[] authorizedAddresses = [];
     if !targetAuthorizationTestBypass {
         // Resolve and authorize at the dispatch boundary, not only when the job
         // was queued. This narrows the DNS-rebinding window and catches rules
@@ -605,6 +608,7 @@ function dispatchQueuedScan(string publicScanId, string ownerSubject,
                     authorization.code, true, leaseToken, requestId);
             return;
         }
+        authorizedAddresses = authorization.resolvedAddresses;
         ScanUpdateOutcome attached = check attachAllowedTargetToDispatch(
                 publicScanId, authorization.allowedTargetId, leaseToken);
         if attached == "UNCHANGED" {
@@ -614,7 +618,7 @@ function dispatchQueuedScan(string publicScanId, string ownerSubject,
         }
     }
     ScannerCreateResponse|ScannerFailure scannerResult =
-        createScannerJob(request, requestId, publicScanId);
+        createScannerJob(request, authorizedAddresses, requestId, publicScanId);
     if scannerResult is ScannerFailure {
         if scannerResult.code == SCANNER_UNAVAILABLE ||
                 scannerResult.code == JOB_LIMIT_REACHED {

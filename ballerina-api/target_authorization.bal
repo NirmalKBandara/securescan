@@ -6,6 +6,7 @@ import ballerina/lang.'string;
 // run without PostgreSQL. Startup validation binds it to the fixed test
 // service and mock scanner; it is not a deployable authorization switch.
 configurable boolean targetAuthorizationTestBypass = false;
+const int MAX_AUTHORIZED_ADDRESSES = 16;
 
 type AuthorizedScanTarget record {|
     string allowedTargetId;
@@ -82,6 +83,9 @@ function resolveAllAddresses(string hostname) returns string[]|error {
         string value = possibleValue;
         if !containsAddress(addresses, value) {
             addresses.push(value);
+            if addresses.length() > MAX_AUTHORIZED_ADDRESSES {
+                return error("DNS resolution returned too many addresses");
+            }
         }
     }
     return addresses;
@@ -97,7 +101,7 @@ function containsAddress(string[] addresses, string candidate) returns boolean {
 }
 
 function allAddressesSafe(string[] addresses) returns boolean {
-    if addresses.length() == 0 {
+    if addresses.length() == 0 || addresses.length() > MAX_AUTHORIZED_ADDRESSES {
         return false;
     }
     foreach string address in addresses {

@@ -217,6 +217,12 @@ The API Manager contract additionally binds these operations to
 [Day 30 runbook](../docs/security/day-30-allowed-target-administration.md) for
 request examples and acceptance checks.
 
+Every persisted scan must match one of those enabled rules for its complete
+port range. Hostnames are resolved and all returned addresses are checked at
+admission and again immediately before scanner dispatch. See the
+[Day 31 runbook](../docs/security/day-31-target-authorization.md) for matching,
+DNS safety, fail-closed startup, and blocked-attempt audit guarantees.
+
 ## Persistence Guarantees
 
 Lifecycle writes are conditional on the current database status and report

@@ -70,6 +70,8 @@ docker compose -f deployment/compose.yaml down --volumes
   rollback of a lifecycle update when its audit insert fails. Day 30 fixtures
   additionally prove hostname, exact-IP, and CIDR policy storage, admin-only
   audit attribution, soft disable, and retention of audited target rows.
+  Day 31 fixtures prove enabled-rule and port containment, unsafe-address
+  rejection, disabled-rule rejection, and blocked-scan policy attribution.
 
 Do not put `BEGIN` or `COMMIT` in a migration file; the runner supplies the
 transaction. Production index migrations should use a deployment runner that

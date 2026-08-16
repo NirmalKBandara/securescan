@@ -141,6 +141,14 @@ APIs list, create, and soft-disable them; and every change commits with
 immutable actor, request, target, and timestamp attribution. Live WSO2
 role/scope acceptance remains pending on a Docker-capable host.
 
+The Day 31 target-authorization checkpoint is repository-complete. Every scan
+must match an enabled hostname, IP, or CIDR policy for its complete port range;
+hostnames are resolved and every address is safety-checked both at admission
+and immediately before dispatch. Unsafe, unauthorized, expired, or disabled
+targets are blocked before reaching the scanner and recorded with immutable
+audit attribution. Live DNS-transition evidence remains pending on a
+Docker-capable host with PostgreSQL and WSO2.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -217,3 +225,7 @@ live quota/bypass acceptance procedure are documented in
 The allowed-target data model, administrator API, transactional audit rules,
 and acceptance procedure are documented in
 [`Day 30 allowed-target administration`](docs/security/day-30-allowed-target-administration.md).
+
+The enforced allowlist decision, all-address DNS safety checks, rebinding
+defenses, and blocked-attempt evidence are documented in
+[`Day 31 target authorization`](docs/security/day-31-target-authorization.md).

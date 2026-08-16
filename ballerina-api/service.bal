@@ -331,7 +331,7 @@ service / on new http:Listener(listenerPort) {
             select {
                 id: item.id,
                 ownerSubject: item.ownerSubject,
-                status: <ScanJobStatus>item.status,
+                status: persistedPublicStatus(item.status),
                 target: item.target,
                 startPort: item.startPort,
                 endPort: item.endPort,

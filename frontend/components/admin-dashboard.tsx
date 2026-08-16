@@ -80,6 +80,14 @@ export function AdminDashboard() {
     const start = String(form.get("startPort") || "");
     const end = String(form.get("endPort") || "");
     setError("");
+    if ((start && !end) || (!start && end)) {
+      setError("Provide both a start port and an end port, or leave both empty.");
+      return;
+    }
+    if (start && end && Number(start) > Number(end)) {
+      setError("Start port must be less than or equal to end port.");
+      return;
+    }
     try {
       await adminApi.createAllowedTarget({
         targetKind, target,

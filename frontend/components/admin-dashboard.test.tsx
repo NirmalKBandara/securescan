@@ -17,6 +17,7 @@ const usage = { totalUsers: 2, totalScans: 3, queuedScans: 0, runningScans: 1,
 
 describe("AdminDashboard", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(adminApi.usage).mockResolvedValue(usage);
     vi.mocked(adminApi.scans).mockResolvedValue({ pageSize: 100, items: [{
       id: "scan-1", ownerSubject: "alice", target: "blocked.example", startPort: 1,
@@ -53,5 +54,34 @@ describe("AdminDashboard", () => {
     await waitFor(() => expect(adminApi.scans).toHaveBeenLastCalledWith({
       ownerSubject: "alice", status: "blocked",
     }));
+  });
+
+  it("creates a bounded allowed target", async () => {
+    const user = userEvent.setup();
+    vi.mocked(adminApi.createAllowedTarget).mockResolvedValue({
+      id: "target-2", targetKind: "HOSTNAME", target: "public.example",
+      startPort: 443, endPort: 443, enabled: true, createdBySubject: "admin",
+      createdAt: "2026-08-16T10:00:00Z", updatedAt: "2026-08-16T10:00:00Z",
+    });
+    render(<AdminDashboard />);
+    await screen.findByText("BLOCKED_TARGET");
+    await user.type(screen.getByLabelText("Target"), "public.example");
+    await user.type(screen.getByLabelText("Start port"), "443");
+    await user.type(screen.getByLabelText("End port"), "443");
+    await user.click(screen.getByRole("button", { name: "Add target" }));
+    await waitFor(() => expect(adminApi.createAllowedTarget).toHaveBeenCalledWith({
+      targetKind: "HOSTNAME", target: "public.example", startPort: 443, endPort: 443,
+    }));
+  });
+
+  it("rejects an incomplete port policy before calling the API", async () => {
+    const user = userEvent.setup();
+    render(<AdminDashboard />);
+    await screen.findByText("BLOCKED_TARGET");
+    await user.type(screen.getByLabelText("Target"), "public.example");
+    await user.type(screen.getByLabelText("Start port"), "443");
+    await user.click(screen.getByRole("button", { name: "Add target" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Provide both");
+    expect(adminApi.createAllowedTarget).not.toHaveBeenCalled();
   });
 });

@@ -223,6 +223,15 @@ admission and again immediately before scanner dispatch. See the
 [Day 31 runbook](../docs/security/day-31-target-authorization.md) for matching,
 DNS safety, fail-closed startup, and blocked-attempt audit guarantees.
 
+## Administrator review API
+
+Exact administrators can use `GET /api/v1/admin/scans` with optional
+`ownerSubject` and `status` filters, `GET /api/v1/admin/audit-logs`, and
+`GET /api/v1/admin/usage`. Collections are bounded to 100 rows, database reads
+are parameterized, and each resource enforces `requireAdmin` before querying.
+See the [Day 32 runbook](../docs/frontend/day-32-administrator-dashboard.md) for
+the complete UI, API, and verification contract.
+
 ## Persistence Guarantees
 
 Lifecycle writes are conditional on the current database status and report

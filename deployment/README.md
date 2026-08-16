@@ -58,6 +58,9 @@ Install the Day 29 user/admin subscription policies with
 Re-import the API project for the Day 30 `securescan:admin` scope and
 allowed-target operations, then follow the
 [Day 30 administration runbook](../docs/security/day-30-allowed-target-administration.md).
+Re-import again after Day 32 to expose the admin scan, audit-log, and usage
+resources used by the dashboard; their role and UI checks are documented in the
+[Day 32 dashboard runbook](../docs/frontend/day-32-administrator-dashboard.md).
 
 Override a host port without editing the Compose file:
 

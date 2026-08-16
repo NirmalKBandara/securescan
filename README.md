@@ -149,6 +149,13 @@ targets are blocked before reaching the scanner and recorded with immutable
 audit attribution. Live DNS-transition evidence remains pending on a
 Docker-capable host with PostgreSQL and WSO2.
 
+The Day 32 administrator-dashboard checkpoint is repository-complete. Exact
+administrators can review scans across users, filter by owner and lifecycle,
+inspect safe audit events and usage counts, and create or disable target rules
+from the responsive Next.js interface. The page, Gateway scope, and Ballerina
+API each enforce the administrator boundary. Live WSO2 role/scope evidence
+remains pending on a Docker-capable host.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -229,3 +236,7 @@ and acceptance procedure are documented in
 The enforced allowlist decision, all-address DNS safety checks, rebinding
 defenses, and blocked-attempt evidence are documented in
 [`Day 31 target authorization`](docs/security/day-31-target-authorization.md).
+
+The all-user scan review, audit visibility, usage counts, target-policy controls,
+and layered role enforcement are documented in
+[`Day 32 administrator dashboard`](docs/frontend/day-32-administrator-dashboard.md).

@@ -1,6 +1,6 @@
 # SecureScan frontend
 
-The Day 29 frontend is a Next.js 16 App Router application with strict TypeScript,
+The Day 32 frontend is a Next.js 16 App Router application with strict TypeScript,
 plain CSS design tokens, an accessible application shell, a typed boundary for
 the Ballerina public API, reusable scan interface components, and validated scan
 submission.
@@ -70,7 +70,7 @@ and managed secrets outside local development.
 - `/scans/new` — validated scan submission to the Ballerina public API
 - `/scans/[id]` — scan status/results destination
 - `/history` — durable scan history with status filtering and UTC timestamps
-- `/admin` — administrator controls destination
+- `/admin` — all-user scan review, audit events, usage, and target controls
 - `/forbidden` — accessible insufficient-role outcome
 - `/ui-preview` — backend-free Day 17 component and state review surface
 
@@ -94,6 +94,7 @@ creates a real scan.
 - `ResultsTable` — semantic desktop table and responsive mobile result cards
 - `ErrorMessage` — alert feedback with optional correlation request ID
 - `LoadingState` — text and motion-based progress feedback
+- `AdminDashboard` — filtered scan review, usage, audit, and policy management
 
 Mock data lives in `lib/mocks/scans.ts` and is presentation-only. Components do
 not call the backend directly; later pages should continue to use `scansApi`.
@@ -102,7 +103,8 @@ not call the backend directly; later pages should continue to use `scansApi`.
 
 `lib/api/types.ts` mirrors `docs/api/ballerina-public-api.md`, including stable
 success/error envelopes, lifecycle states, results and keyset history. Use the
-single `scansApi` export instead of calling configured URLs from components.
+single `scansApi` export for ordinary scan flows and `adminApi` for protected
+management operations instead of calling configured URLs from components.
 The boundary preserves public request IDs on `SecureScanApiError` for support.
 
 ## Quality checks
@@ -126,6 +128,8 @@ The API Manager application, subscription, scope, CORS, and live browser checks
 are documented in `docs/gateway/day-28-gateway-routing.md`.
 Day 29 throttling, request limits, timeouts, and live acceptance are documented
 in `docs/gateway/day-29-api-throttling.md`.
+The administrator UI, API resources, and layered role boundary are documented
+in `docs/frontend/day-32-administrator-dashboard.md`.
 
 Do not commit `.env.local`, tokens, or identity-provider secrets. Only
 `NEXT_PUBLIC_*` values intended for browsers belong in this application.

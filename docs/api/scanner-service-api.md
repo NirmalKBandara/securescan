@@ -26,9 +26,9 @@ In-memory job store
 TCP connect scanner
 ```
 
-The HTTP layer converts an incoming request into the same `ScanConfig` used
-by the CLI. Therefore, both entry points enforce the Day 3 target, port,
-timeout, allowlist and concurrency controls.
+The HTTP layer converts an incoming request into `ScanConfig`, including the
+exact address set authorized by Ballerina. Production HTTP requests must carry
+those pins; Go verifies the current DNS set and later dials only the pins.
 
 ## Job Lifecycle
 
@@ -67,11 +67,13 @@ Retry-capable callers should also send `X-Idempotency-Key` containing the
 durable public scan UUID. The same key with the same normalized target and port
 range returns the original job and never starts a second goroutine. Reusing a
 key for different scan parameters returns `409 IDEMPOTENCY_CONFLICT`. The
-header remains optional for backward compatibility.
+idempotency header remains optional, but the authorized address set is required
+outside loopback-isolated development.
 
 ```json
 {
   "target": "scanme.nmap.org",
+  "authorizedAddresses": ["45.33.32.156"],
   "startPort": 1,
   "endPort": 100
 }
@@ -94,11 +96,13 @@ Before accepting the job, the service:
 1. Limits the request body to 4096 bytes.
 2. Rejects malformed JSON, unknown fields and trailing JSON values.
 3. Validates the requested port range and configured limits.
-4. Validates and resolves the target.
-5. Rejects blocked or non-allowlisted addresses.
+4. Requires at most 16 Ballerina-authorized addresses in production.
+5. Validates every pin, requires the current DNS set to match exactly, and
+   rejects blocked, special-use, or non-allowlisted addresses.
 6. Applies idempotency and the global active-job limit atomically.
 7. Generates a random UUID v4 for newly admitted work.
-8. Stores the job before starting asynchronous execution.
+8. Stores the job and pins before starting asynchronous execution; the scanner
+   dials those pins without resolving the hostname again.
 
 ## GET /internal/scans/{id}
 
@@ -174,8 +178,14 @@ errors. Request method and path are written to the service log.
 ## Security Boundary
 
 The HTTP API is another untrusted-input boundary. It does not bypass scanner
-validation. Private, loopback, link-local, multicast, unspecified and cloud
-metadata addresses remain blocked according to the configured Day 3 policy.
+validation. Private, loopback, link-local, multicast, unspecified, cloud
+metadata, and reviewed special-use ranges remain blocked. IPv4-mapped IPv6
+addresses are unmapped before classification.
+
+Unpinned requests and `ALLOW_PRIVATE_TARGETS=true` require
+`SCANNER_ISOLATED_DEVELOPMENT=true`, which forces the listener to
+`127.0.0.1:8081`. That mode is for isolated testing and is not a production
+compatibility path.
 
 The service must remain behind the Ballerina and API-management layers in
 the final architecture. Those layers will add authentication, authorization,

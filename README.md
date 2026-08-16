@@ -156,6 +156,14 @@ from the responsive Next.js interface. The page, Gateway scope, and Ballerina
 API each enforce the administrator boundary. Live WSO2 role/scope evidence
 remains pending on a Docker-capable host.
 
+The Day 33 repository security checkpoint is complete. Authentication bypasses
+are restricted to fixed isolated tests, browser identity-header spoofing is
+discarded, role lookalikes cannot gain administrator access, and Ballerina's
+authorized DNS address set is pinned through Go to the final dial. Unsafe and
+special-use addresses, DNS set changes, more than 16 answers, and more than
+1,000 ports fail closed. The live multi-user/WSO2/PostgreSQL matrix remains a
+required pre-deployment gate.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -240,3 +248,8 @@ defenses, and blocked-attempt evidence are documented in
 The all-user scan review, audit visibility, usage counts, target-policy controls,
 and layered role enforcement are documented in
 [`Day 32 administrator dashboard`](docs/frontend/day-32-administrator-dashboard.md).
+
+The authorization, DNS pinning, abuse-limit, and audit evidence is documented
+in [`Day 33 security checkpoint`](docs/security/day-33-security-checkpoint.md),
+with the maintained [`threat model`](docs/security/threat-model.md) and
+[`authorized-use policy`](docs/security/authorized-use-policy.md).

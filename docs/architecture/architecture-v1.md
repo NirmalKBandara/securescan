@@ -1,5 +1,11 @@
 # SecureScan Architecture — Version 1
 
+The maintained security boundaries, threats, automated evidence, and residual
+deployment checks are defined in the
+[`SecureScan threat model`](../security/threat-model.md). Authorized operation
+is governed by the
+[`authorized-use policy`](../security/authorized-use-policy.md).
+
 ## Overview
 
 SecureScan is composed of multiple services, with each component responsible for a specific part of the system.

@@ -14,6 +14,7 @@ const string UNKNOWN_SCAN_ID = "00000000-0000-4000-8000-000000000099";
 
 type MockScannerRequest record {|
     string target;
+    string[] authorizedAddresses;
     int startPort;
     int endPort;
 |};

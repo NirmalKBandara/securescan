@@ -438,6 +438,39 @@ function testAllowedTargetHostnameNormalizationAndValidation() {
     request.target = "wildcard.*.example";
     test:assertTrue(validateAllowedTargetRequest(request, "request-id")
             is BadRequestError);
+
+    test:assertTrue(validExactHostname("scanme.nmap.org"));
+    test:assertFalse(validExactHostname("bad_name.example"));
+    test:assertFalse(validExactHostname("-bad.example"));
+    test:assertFalse(validExactHostname("bad.example."));
+}
+
+@test:Config {}
+function testAuthorizedPublicTargetPassesPolicy() {
+    test:assertTrue(targetPassesAuthorization(
+                    "10000000-0000-4000-8000-000000000001", ["45.33.32.156"]));
+}
+
+@test:Config {}
+function testUnauthorizedAndDisabledHostnameRulesAreBlocked() {
+    test:assertFalse(targetPassesAuthorization((), ["45.33.32.156"]));
+}
+
+@test:Config {}
+function testPrivateAndUnsafeDnsAnswersAreBlocked() returns error? {
+    test:assertFalse(addressIsSafe("127.0.0.1"));
+    test:assertFalse(addressIsSafe("10.0.0.1"));
+    test:assertFalse(addressIsSafe("169.254.169.254"));
+    test:assertFalse(addressIsSafe("0.0.0.0"));
+    test:assertFalse(addressIsSafe("224.0.0.1"));
+    test:assertFalse(addressIsSafe("fd00:ec2::254"));
+    test:assertFalse(targetPassesAuthorization(
+                    "10000000-0000-4000-8000-000000000001",
+                    ["45.33.32.156", "192.168.1.10"]));
+
+    string[] localhostAnswers = check resolveAllAddresses("localhost");
+    test:assertTrue(localhostAnswers.length() > 0);
+    test:assertFalse(allAddressesSafe(localhostAnswers));
 }
 
 @test:Config {}

@@ -113,8 +113,8 @@ $verification$;
 
 DO $verification$
 BEGIN
-    IF (SELECT count(*) FROM schema_migrations) <> 5 THEN
-        RAISE EXCEPTION 'expected exactly five applied migrations';
+    IF (SELECT count(*) FROM schema_migrations) <> 6 THEN
+        RAISE EXCEPTION 'expected exactly six applied migrations';
     END IF;
 
     IF (SELECT count(*) FROM allowed_targets
@@ -385,6 +385,69 @@ BEGIN
            AND owner_subject = 'subject:alice'
     ) THEN
         RAISE EXCEPTION 'authenticated audit attribution is missing';
+    END IF;
+END
+$verification$;
+
+ROLLBACK;
+
+-- Day 31 target authorization, disabled-rule rejection and blocked audit link.
+BEGIN;
+
+INSERT INTO allowed_targets (
+    id, target_kind, hostname_normalized, scope, start_port, end_port,
+    enabled, created_by_subject
+) VALUES
+    ('10000000-0000-4000-8000-000000000031', 'HOSTNAME',
+     'authorized.day31.example', 'GLOBAL', 443, 443, true, 'test:admin'),
+    ('10000000-0000-4000-8000-000000000032', 'HOSTNAME',
+     'disabled.day31.example', 'GLOBAL', 443, 443, false, 'test:admin');
+
+INSERT INTO scan_jobs (
+    id, owner_subject, target, start_port, end_port, status,
+    allowed_target_id, failure_code, finished_at
+) VALUES (
+    '20000000-0000-4000-8000-000000000031', 'test:day31-owner',
+    'authorized.day31.example', 443, 443, 'BLOCKED',
+    '10000000-0000-4000-8000-000000000031', 'BLOCKED_TARGET',
+    CURRENT_TIMESTAMP
+);
+
+INSERT INTO audit_logs (
+    id, actor_type, actor_subject, owner_subject, action, outcome,
+    request_id, scan_job_id, allowed_target_id, metadata
+) VALUES (
+    '40000000-0000-4000-8000-000000000031', 'SERVICE', 'securescan-api',
+    'test:day31-owner', 'SCAN_BLOCKED', 'DENIED',
+    '50000000-0000-4000-8000-000000000031',
+    '20000000-0000-4000-8000-000000000031',
+    '10000000-0000-4000-8000-000000000031',
+    '{"failureCode":"BLOCKED_TARGET"}'
+);
+
+DO $verification$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM allowed_targets
+         WHERE hostname_normalized = 'authorized.day31.example'
+           AND enabled AND start_port <= 443 AND end_port >= 443
+    ) THEN
+        RAISE EXCEPTION 'authorized Day 31 target did not match';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM allowed_targets
+         WHERE hostname_normalized = 'disabled.day31.example' AND enabled
+    ) THEN
+        RAISE EXCEPTION 'disabled Day 31 target matched authorization';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM audit_logs
+         WHERE scan_job_id = '20000000-0000-4000-8000-000000000031'
+           AND action = 'SCAN_BLOCKED' AND outcome = 'DENIED'
+           AND allowed_target_id =
+               '10000000-0000-4000-8000-000000000031'
+    ) THEN
+        RAISE EXCEPTION 'Day 31 blocked attempt was not audited';
     END IF;
 END
 $verification$;

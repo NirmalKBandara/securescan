@@ -15,6 +15,7 @@ function init() returns error? {
             reconciliationIntervalSeconds);
     check validateSecurityLimits(maxPortsPerScan, maxRequestBodyBytes);
     check validateDispatchLease(dispatchLeaseSeconds, scannerResponseTimeout);
+    check validateTargetAuthorizationConfiguration();
     if persistenceEnabled {
         _ = start reconcileActiveScansInBackground();
     }
@@ -79,8 +80,36 @@ service / on new http:Listener(listenerPort) {
 
         string publicScanId = uuid:createType4AsString();
         if persistenceEnabled {
+            string? initialAllowedTargetId = ();
+            if !targetAuthorizationTestBypass {
+                // Validate once at admission, then repeat after taking the
+                // dispatch lease. The second resolution is the authoritative
+                // decision immediately before the scanner call.
+                AuthorizedScanTarget|TargetAuthorizationFailure|error authorization =
+                    authorizeScanTarget(authContext.subject, request);
+                if authorization is error {
+                    log:printError("Unable to authorize scan target",
+                            requestId = requestId, scanId = publicScanId);
+                    return persistenceUnavailable(requestId);
+                }
+                if authorization is TargetAuthorizationFailure {
+                    error? auditError = insertBlockedScan(publicScanId,
+                            authContext.subject, request, authorization.code,
+                            requestId, authorization.allowedTargetId);
+                    if auditError is error {
+                        log:printError("Unable to audit blocked scan",
+                                requestId = requestId, scanId = publicScanId);
+                        return persistenceUnavailable(requestId);
+                    }
+                    return badRequest(BLOCKED_TARGET,
+                            "The target is not permitted", {}, requestId);
+                }
+                initialAllowedTargetId = authorization.allowedTargetId;
+                request.target = authorization.normalizedTarget;
+            }
             QueuedScanInsertOutcome|error insertError =
-                insertQueuedScan(publicScanId, authContext.subject, request, requestId);
+                insertQueuedScan(publicScanId, authContext.subject, request,
+                    requestId, initialAllowedTargetId);
             if insertError is error {
                 log:printError("Unable to persist queued scan", insertError,
                         requestId = requestId, scanId = publicScanId);
@@ -414,6 +443,28 @@ function dispatchQueuedScan(string publicScanId, string ownerSubject,
     }
     if claim == "UNCHANGED" {
         return;
+    }
+    if !targetAuthorizationTestBypass {
+        // Resolve and authorize at the dispatch boundary, not only when the job
+        // was queued. This narrows the DNS-rebinding window and catches rules
+        // disabled while a job was waiting.
+        AuthorizedScanTarget|TargetAuthorizationFailure|error authorization =
+            authorizeScanTarget(ownerSubject, request);
+        if authorization is error {
+            return authorization;
+        }
+        if authorization is TargetAuthorizationFailure {
+            _ = check markScanDispatchFailed(publicScanId, ownerSubject,
+                    authorization.code, true, leaseToken, requestId);
+            return;
+        }
+        ScanUpdateOutcome attached = check attachAllowedTargetToDispatch(
+                publicScanId, authorization.allowedTargetId, leaseToken);
+        if attached == "UNCHANGED" {
+            _ = check markScanDispatchFailed(publicScanId, ownerSubject,
+                    BLOCKED_TARGET, true, leaseToken, requestId);
+            return;
+        }
     }
     ScannerCreateResponse|ScannerFailure scannerResult =
         createScannerJob(request, requestId, publicScanId);
@@ -842,7 +893,8 @@ function validateAllowedTargetRequest(CreateAllowedTargetRequest request,
 }
 
 function validExactHostname(string hostname) returns boolean {
-    if hostname.startsWith(".") || hostname.endsWith(".") ||
+    if hostname.length() < 1 || hostname.length() > 253 ||
+            hostname.startsWith(".") || hostname.endsWith(".") ||
             hostname.includes("..") {
         return false;
     }

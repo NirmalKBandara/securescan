@@ -68,6 +68,11 @@ type NetworkTargetValidation record {|
     boolean valid;
 |};
 
+type NetworkTargetAuthorization record {|
+    boolean inputIsAddress;
+    string? allowedTargetId = ();
+|};
+
 type LockedScanJob record {|
     string id;
 |};
@@ -97,7 +102,7 @@ type AdvisoryLockResult record {|
 |};
 
 function insertQueuedScan(string id, string ownerSubject, CreateScanRequest request,
-        string requestId)
+        string requestId, string? allowedTargetId = ())
         returns QueuedScanInsertOutcome|error {
     postgresql:Client db = check getDatabaseClient();
     string target = request.target.trim();
@@ -120,9 +125,11 @@ function insertQueuedScan(string id, string ownerSubject, CreateScanRequest requ
         if admitted {
             _ = check db->execute(`
                 INSERT INTO scan_jobs
-                    (id, owner_subject, target, start_port, end_port, status)
+                    (id, owner_subject, target, start_port, end_port, status,
+                     allowed_target_id)
                 VALUES (CAST(${id} AS uuid), ${ownerSubject}, ${target},
-                        ${request.startPort}, ${request.endPort}, 'QUEUED')`);
+                        ${request.startPort}, ${request.endPort}, 'QUEUED',
+                        CAST(${allowedTargetId} AS uuid))`);
             json metadata = {
                 startPort: request.startPort,
                 endPort: request.endPort
@@ -136,6 +143,34 @@ function insertQueuedScan(string id, string ownerSubject, CreateScanRequest requ
         }
     }
     return "CREATED";
+}
+
+function insertBlockedScan(string id, string ownerSubject,
+        CreateScanRequest request, string failureCode, string requestId,
+        string? allowedTargetId = ()) returns error? {
+    postgresql:Client db = check getDatabaseClient();
+    string target = request.target.trim();
+    transaction {
+        _ = check db->execute(`
+            INSERT INTO scan_jobs
+                (id, owner_subject, target, start_port, end_port, status,
+                 allowed_target_id, failure_code, finished_at)
+            VALUES (CAST(${id} AS uuid), ${ownerSubject}, ${target},
+                    ${request.startPort}, ${request.endPort}, 'BLOCKED',
+                    CAST(${allowedTargetId} AS uuid), ${failureCode},
+                    CURRENT_TIMESTAMP)`);
+        json requestedMetadata = {
+            startPort: request.startPort,
+            endPort: request.endPort
+        };
+        check insertAuditEvent(db, "USER", ownerSubject, ownerSubject,
+                "SCAN_REQUESTED", "SUCCESS", requestId, id,
+                requestedMetadata);
+        check insertAuditEvent(db, "SERVICE", serviceName, ownerSubject,
+                "SCAN_BLOCKED", "DENIED", requestId, id,
+                {failureCode: failureCode});
+        check commit;
+    }
 }
 
 function claimScanDispatch(string id, string leaseToken)
@@ -342,10 +377,12 @@ function insertAuditEvent(postgresql:Client db, AuditActorType actorType,
     _ = check db->execute(`
         INSERT INTO audit_logs
             (id, actor_type, actor_subject, owner_subject, action, outcome,
-             request_id, scan_job_id, metadata)
+             request_id, scan_job_id, allowed_target_id, metadata)
         VALUES (CAST(${eventId} AS uuid), ${actorType}, ${actorSubject},
                 ${ownerSubject}, ${action}, ${outcome},
                 CAST(${requestId} AS uuid), CAST(${scanId} AS uuid),
+                (SELECT allowed_target_id FROM scan_jobs
+                  WHERE id = CAST(${scanId} AS uuid)),
                 CAST(${metadataJson} AS jsonb))`);
 }
 
@@ -460,6 +497,79 @@ function validateNetworkAllowedTarget(string target, AllowedTargetKind targetKin
         from NetworkTargetValidation row in validationStream
     select row;
     return rows.length() == 1 && rows[0].valid;
+}
+
+function loadNetworkTargetAuthorization(string target, string ownerSubject,
+        int startPort, int endPort) returns NetworkTargetAuthorization|error {
+    postgresql:Client db = check getDatabaseClient();
+    stream<NetworkTargetAuthorization, sql:Error?> authorizationStream = db->query(`
+        SELECT pg_input_is_valid(${target}, 'inet') AS "inputIsAddress",
+               (
+                   SELECT id::text
+                     FROM allowed_targets
+                    WHERE enabled
+                      AND target_kind IN ('IP', 'CIDR')
+                      AND CASE
+                              WHEN pg_input_is_valid(${target}, 'inet')
+                              THEN target_cidr >>= CAST(${target} AS inet)
+                              ELSE false
+                          END
+                      AND (expires_at IS NULL
+                           OR expires_at > CURRENT_TIMESTAMP)
+                      AND (scope = 'GLOBAL' OR owner_subject = ${ownerSubject})
+                      AND (start_port IS NULL
+                           OR (start_port <= ${startPort}
+                               AND end_port >= ${endPort}))
+                    ORDER BY (scope = 'OWNER') DESC,
+                             masklen(target_cidr) DESC
+                    LIMIT 1
+               ) AS "allowedTargetId"`);
+    NetworkTargetAuthorization[] rows = check
+        from NetworkTargetAuthorization row in authorizationStream
+    select row;
+    if rows.length() != 1 {
+        return error("network target authorization query returned no decision");
+    }
+    return rows[0];
+}
+
+function loadHostnameAllowedTarget(string hostname, string ownerSubject,
+        int startPort, int endPort) returns string|error? {
+    postgresql:Client db = check getDatabaseClient();
+    stream<LockedScanJob, sql:Error?> targetStream = db->query(`
+        SELECT id::text AS "id"
+          FROM allowed_targets
+         WHERE enabled
+           AND target_kind = 'HOSTNAME'
+           AND hostname_normalized = ${hostname}
+           AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+           AND (scope = 'GLOBAL' OR owner_subject = ${ownerSubject})
+           AND (start_port IS NULL
+                OR (start_port <= ${startPort} AND end_port >= ${endPort}))
+         ORDER BY (scope = 'OWNER') DESC
+         LIMIT 1`);
+    LockedScanJob[] rows = check from LockedScanJob row in targetStream
+        select row;
+    return rows.length() == 0 ? () : rows[0].id;
+}
+
+function attachAllowedTargetToDispatch(string id, string allowedTargetId,
+        string leaseToken) returns ScanUpdateOutcome|error {
+    postgresql:Client db = check getDatabaseClient();
+    sql:ExecutionResult update = check db->execute(`
+        UPDATE scan_jobs
+           SET allowed_target_id = CAST(${allowedTargetId} AS uuid),
+               updated_at = CURRENT_TIMESTAMP
+         WHERE id = CAST(${id} AS uuid) AND status = 'QUEUED'
+           AND dispatch_lease_token = CAST(${leaseToken} AS uuid)
+           AND EXISTS (
+               SELECT 1 FROM allowed_targets
+                WHERE allowed_targets.id = CAST(${allowedTargetId} AS uuid)
+                  AND allowed_targets.enabled
+                  AND (allowed_targets.expires_at IS NULL
+                       OR allowed_targets.expires_at > CURRENT_TIMESTAMP)
+           )`);
+    return scanUpdateOutcome(update);
 }
 
 function insertAllowedTarget(string id, string actorSubject,

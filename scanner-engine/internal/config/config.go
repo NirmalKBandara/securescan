@@ -18,6 +18,7 @@ const (
 
 type Config struct {
 	AllowPrivateTargets bool
+	IsolatedDevelopment bool
 	MaxPortsPerScan     int
 	MaxConcurrentPorts  int
 	ScanTimeout         time.Duration
@@ -27,9 +28,18 @@ type Config struct {
 }
 
 func Load() (Config, error) {
+	isolatedDevelopment, err := readBool("SCANNER_ISOLATED_DEVELOPMENT", false)
+	if err != nil {
+		return Config{}, err
+	}
 	allowPrivate, err := readBool("ALLOW_PRIVATE_TARGETS", false)
 	if err != nil {
 		return Config{}, err
+	}
+	if allowPrivate && !isolatedDevelopment {
+		return Config{}, fmt.Errorf(
+			"ALLOW_PRIVATE_TARGETS requires SCANNER_ISOLATED_DEVELOPMENT=true",
+		)
 	}
 	maxPorts, err := readPositiveInt(
 		"MAX_PORTS_PER_SCAN",
@@ -79,6 +89,7 @@ func Load() (Config, error) {
 
 	return Config{
 		AllowPrivateTargets: allowPrivate,
+		IsolatedDevelopment: isolatedDevelopment,
 		MaxPortsPerScan:     maxPorts,
 		MaxConcurrentPorts:  maxConcurrency,
 		ScanTimeout:         time.Duration(timeoutMS) * time.Millisecond,

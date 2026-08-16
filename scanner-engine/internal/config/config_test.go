@@ -7,6 +7,7 @@ import (
 
 func TestLoadUsesSafeDefaults(t *testing.T) {
 	t.Setenv("ALLOW_PRIVATE_TARGETS", "")
+	t.Setenv("SCANNER_ISOLATED_DEVELOPMENT", "")
 	t.Setenv("MAX_PORTS_PER_SCAN", "")
 	t.Setenv("MAX_CONCURRENT_PORTS", "")
 	t.Setenv("SCAN_TIMEOUT_MS", "")
@@ -53,6 +54,11 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		value string
 	}{
 		{
+			name:  "invalid isolated development boolean",
+			key:   "SCANNER_ISOLATED_DEVELOPMENT",
+			value: "maybe",
+		},
+		{
 			name:  "invalid allow private boolean",
 			key:   "ALLOW_PRIVATE_TARGETS",
 			value: "maybe",
@@ -92,6 +98,7 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv("ALLOW_PRIVATE_TARGETS", "")
+			t.Setenv("SCANNER_ISOLATED_DEVELOPMENT", "")
 			t.Setenv("MAX_PORTS_PER_SCAN", "")
 			t.Setenv("MAX_CONCURRENT_PORTS", "")
 			t.Setenv("SCAN_TIMEOUT_MS", "")
@@ -110,6 +117,7 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 
 func TestLoadReadsAllowlist(t *testing.T) {
 	t.Setenv("ALLOW_PRIVATE_TARGETS", "")
+	t.Setenv("SCANNER_ISOLATED_DEVELOPMENT", "")
 	t.Setenv("MAX_PORTS_PER_SCAN", "")
 	t.Setenv("MAX_CONCURRENT_PORTS", "")
 	t.Setenv("SCAN_TIMEOUT_MS", "")
@@ -128,5 +136,22 @@ func TestLoadReadsAllowlist(t *testing.T) {
 
 	if config.AllowedTargets[0] != "scanme.example" {
 		t.Fatalf("expected lowercased allowlist entry, got %q", config.AllowedTargets[0])
+	}
+}
+
+func TestLoadRestrictsPrivateTargetsToIsolatedDevelopment(t *testing.T) {
+	t.Setenv("ALLOW_PRIVATE_TARGETS", "true")
+	t.Setenv("SCANNER_ISOLATED_DEVELOPMENT", "false")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected private targets outside isolated development to fail")
+	}
+
+	t.Setenv("SCANNER_ISOLATED_DEVELOPMENT", "true")
+	config, err := Load()
+	if err != nil {
+		t.Fatalf("expected isolated private-target configuration to load: %v", err)
+	}
+	if !config.AllowPrivateTargets || !config.IsolatedDevelopment {
+		t.Fatal("expected isolated development flags to be enabled")
 	}
 }

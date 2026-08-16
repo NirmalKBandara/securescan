@@ -20,11 +20,18 @@ func Scan(config models.ScanConfig) (models.ScanResult, error) {
 		)
 	}
 
-	validatedTarget, err := validation.ValidateTarget(
-		config.Target,
-		config.AllowPrivateTargets,
-		config.AllowedTargets,
-	)
+	var validatedTarget validation.ValidatedTarget
+	var err error
+	if len(config.AuthorizedAddresses) > 0 {
+		validatedTarget, err = validation.ValidatePinnedTarget(
+			config.Target, config.AuthorizedAddresses,
+			config.AllowPrivateTargets, config.AllowedTargets,
+		)
+	} else {
+		validatedTarget, err = validation.ValidateTarget(
+			config.Target, config.AllowPrivateTargets, config.AllowedTargets,
+		)
+	}
 	if err != nil {
 		return models.ScanResult{}, fmt.Errorf("invalid target: %w", err)
 	}

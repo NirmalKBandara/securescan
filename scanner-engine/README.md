@@ -105,6 +105,7 @@ More detail is available in
 
 ```text
 ALLOW_PRIVATE_TARGETS=false
+SCANNER_ISOLATED_DEVELOPMENT=false
 MAX_PORTS_PER_SCAN=1000
 MAX_CONCURRENT_PORTS=100
 MAX_ACTIVE_SCANS=10
@@ -115,6 +116,13 @@ ALLOWED_TARGETS=
 
 `ALLOWED_TARGETS` is an optional comma-separated allowlist. When it is set,
 only exact matching hostnames or IP addresses are accepted.
+
+The HTTP service requires Ballerina to send the exact authorized DNS address
+set with each scan. Unpinned requests are accepted only when
+`SCANNER_ISOLATED_DEVELOPMENT=true`; that mode retains the scanner's local
+resolve-validate-dial flow and binds the HTTP service to `127.0.0.1`.
+`ALLOW_PRIVATE_TARGETS` is rejected at startup unless the same
+isolated-development flag is enabled.
 
 `MAX_ACTIVE_SCANS` is the process-wide maximum number of accepted/running scan
 jobs. Additional new jobs receive `429 JOB_LIMIT_REACHED`; retries of an

@@ -22,9 +22,10 @@ type api struct {
 }
 
 type createScanRequest struct {
-	Target    string `json:"target"`
-	StartPort int    `json:"startPort"`
-	EndPort   int    `json:"endPort"`
+	Target              string   `json:"target"`
+	AuthorizedAddresses []string `json:"authorizedAddresses"`
+	StartPort           int      `json:"startPort"`
+	EndPort             int      `json:"endPort"`
 }
 
 type createScanResponse struct {
@@ -82,6 +83,7 @@ func (api *api) createScanHandler(w http.ResponseWriter, r *http.Request) {
 
 	scanConfig := models.ScanConfig{
 		Target:              strings.TrimSpace(request.Target),
+		AuthorizedAddresses: request.AuthorizedAddresses,
 		StartPort:           request.StartPort,
 		EndPort:             request.EndPort,
 		Timeout:             api.config.ScanTimeout,
@@ -103,18 +105,35 @@ func (api *api) createScanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := validation.ValidateTarget(
-		scanConfig.Target,
-		scanConfig.AllowPrivateTargets,
-		scanConfig.AllowedTargets,
-	); err != nil {
+	var targetErr error
+	if len(scanConfig.AuthorizedAddresses) > 0 {
+		var pinned validation.ValidatedTarget
+		pinned, targetErr = validation.ValidatePinnedTarget(
+			scanConfig.Target, scanConfig.AuthorizedAddresses,
+			scanConfig.AllowPrivateTargets, scanConfig.AllowedTargets,
+		)
+		if targetErr == nil {
+			targetErr = validation.VerifyCurrentResolution(pinned)
+		}
+	} else if api.config.IsolatedDevelopment {
+		_, targetErr = validation.ValidateTarget(
+			scanConfig.Target, scanConfig.AllowPrivateTargets,
+			scanConfig.AllowedTargets,
+		)
+	} else {
+		targetErr = &validation.TargetError{
+			Kind:    validation.BlockedTarget,
+			Message: "authorized address set is required",
+		}
+	}
+	if targetErr != nil {
 		code := errorCodeInvalidTarget
-		if validation.IsBlockedTargetError(err) {
+		if validation.IsBlockedTargetError(targetErr) {
 			code = errorCodeBlockedTarget
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{
 			Code:  code,
-			Error: err.Error(),
+			Error: targetErr.Error(),
 		})
 		return
 	}

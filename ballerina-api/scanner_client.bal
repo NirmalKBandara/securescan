@@ -14,6 +14,7 @@ final http:Client scannerClient = check new (scannerServiceUrl, {
 
 type ScannerCreateRequest record {|
     string target;
+    string[] authorizedAddresses;
     int startPort;
     int endPort;
 |};
@@ -62,11 +63,12 @@ type ScannerErrorResponse record {|
     string 'error;
 |};
 
-function createScannerJob(CreateScanRequest request, string requestId,
-        string idempotencyKey)
+function createScannerJob(CreateScanRequest request, string[] authorizedAddresses,
+        string requestId, string idempotencyKey)
         returns ScannerCreateResponse|ScannerFailure {
     ScannerCreateRequest scannerRequest = {
         target: request.target.trim(),
+        authorizedAddresses: authorizedAddresses,
         startPort: request.startPort,
         endPort: request.endPort
     };

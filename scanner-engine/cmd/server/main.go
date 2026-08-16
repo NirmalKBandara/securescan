@@ -48,12 +48,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	listenAddress := serviceAddress
+	if config.IsolatedDevelopment {
+		// Development mode permits unpinned/private targets, so make the
+		// topology locally isolated rather than trusting a flag alone.
+		listenAddress = "127.0.0.1:8081"
+	}
 	server := &http.Server{
-		Addr:    serviceAddress,
+		Addr:    listenAddress,
 		Handler: loggingMiddleware(routes(config)),
 	}
 
-	log.Printf("%s listening on %s", serviceName, serviceAddress)
+	log.Printf("%s listening on %s", serviceName, listenAddress)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server failed: %v", err)
 	}

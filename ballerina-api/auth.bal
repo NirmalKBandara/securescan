@@ -16,8 +16,23 @@ type AuthContext record {|
 |};
 
 function validateAuthenticationConfiguration() returns error? {
-    if authenticationEnabled && gatewaySharedSecret.length() < 32 {
+    return validateAuthenticationSettings(authenticationEnabled,
+            gatewaySharedSecret, serviceName, scannerServiceUrl);
+}
+
+function validateAuthenticationSettings(boolean enabled, string sharedSecret,
+        string configuredServiceName, string configuredScannerServiceUrl)
+        returns error? {
+    if enabled && sharedSecret.length() < 32 {
         return error("gatewaySharedSecret must contain at least 32 characters when authentication is enabled");
+    }
+    // Disabling authentication makes every caller an administrator. Keep that
+    // behavior available only to the fixed, isolated contract-test topology so
+    // a production configuration typo cannot become a privilege-escalation
+    // path.
+    if !enabled && (configuredServiceName != "securescan-api-test" ||
+            configuredScannerServiceUrl != "http://localhost:18081") {
+        return error("authentication bypass is restricted to isolated tests");
     }
 }
 

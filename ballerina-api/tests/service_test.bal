@@ -413,6 +413,28 @@ function testGatewayIdentityRequiresSharedSecretAndApplicationRole() {
         authenticateGatewayIdentity("test-secret", "alice", "administrator",
             "test-secret", "request-id");
     test:assertTrue(unrelatedRole is ForbiddenError);
+
+    foreach string lookalike in ["Securescan-admin", "securescan-admin-extra",
+            "prefix-securescan-admin", "administrator"] {
+        AuthContext|UnauthorizedError|ForbiddenError escalated =
+            authenticateGatewayIdentity("test-secret", "alice", lookalike,
+                "test-secret", "request-id");
+        test:assertTrue(escalated is ForbiddenError,
+                msg = string `lookalike role '${lookalike}' must not grant access`);
+    }
+}
+
+@test:Config {}
+function testAuthenticationCannotBeDisabledOutsideIsolatedTests() {
+    test:assertEquals(validateAuthenticationSettings(false, "",
+            "securescan-api-test", "http://localhost:18081"), ());
+    test:assertTrue(validateAuthenticationSettings(false, "",
+            "securescan-api", "http://localhost:8081") is error);
+    test:assertTrue(validateAuthenticationSettings(true, "too-short",
+            "securescan-api", "http://localhost:8081") is error);
+    test:assertEquals(validateAuthenticationSettings(true,
+            "12345678901234567890123456789012", "securescan-api",
+            "http://localhost:8081"), ());
 }
 
 @test:Config {}
@@ -464,6 +486,11 @@ function testPrivateAndUnsafeDnsAnswersAreBlocked() returns error? {
     test:assertFalse(addressIsSafe("0.0.0.0"));
     test:assertFalse(addressIsSafe("224.0.0.1"));
     test:assertFalse(addressIsSafe("fd00:ec2::254"));
+    test:assertFalse(addressIsSafe("::"));
+    test:assertFalse(addressIsSafe("::1"));
+    test:assertFalse(addressIsSafe("fe80::1"));
+    test:assertFalse(addressIsSafe("ff02::1"));
+    test:assertFalse(addressIsSafe("fc00::1"));
     test:assertFalse(targetPassesAuthorization(
                     "10000000-0000-4000-8000-000000000001",
                     ["45.33.32.156", "192.168.1.10"]));

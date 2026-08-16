@@ -52,6 +52,43 @@ type PersistedScanHistoryItem record {|
     string updatedAt;
 |};
 
+type PersistedAdminScanItem record {|
+    string id;
+    string ownerSubject;
+    string target;
+    int startPort;
+    int endPort;
+    string status;
+    string? failureCode = ();
+    string createdAt;
+    string updatedAt;
+|};
+
+type PersistedAuditEvent record {|
+    string id;
+    string occurredAt;
+    string actorType;
+    string? actorSubject = ();
+    string? ownerSubject = ();
+    string action;
+    string outcome;
+    string? requestId = ();
+    string? scanJobId = ();
+    string? allowedTargetId = ();
+    json metadata;
+|};
+
+type PersistedAdminUsage record {|
+    int totalUsers;
+    int totalScans;
+    int queuedScans;
+    int runningScans;
+    int completedScans;
+    int failedScans;
+    int blockedScans;
+    int enabledAllowedTargets;
+|};
+
 type PersistedAllowedTarget record {|
     string id;
     string targetKind;
@@ -478,6 +515,72 @@ function loadScanHistory(string ownerSubject, int pageSize)
              LIMIT ${pageSize}`);
     return check from PersistedScanHistoryItem historyItem in historyStream
         select historyItem;
+}
+
+function loadAdminScans(string? ownerSubject, string? status, int pageSize)
+        returns PersistedAdminScanItem[]|error {
+    check validateHistoryLimit(pageSize);
+    postgresql:Client db = check getDatabaseClient();
+    string selectedOwner = ownerSubject is string ? ownerSubject : "";
+    string selectedStatus = status is string ? status : "";
+    stream<PersistedAdminScanItem, sql:Error?> scanStream = db->query(`
+        SELECT id::text AS "id", owner_subject AS "ownerSubject",
+               target AS "target", start_port AS "startPort",
+               end_port AS "endPort", lower(status) AS "status",
+               failure_code AS "failureCode",
+               to_char(created_at AT TIME ZONE 'UTC',
+                       'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "createdAt",
+               to_char(updated_at AT TIME ZONE 'UTC',
+                       'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt"
+          FROM scan_jobs
+         WHERE (${selectedOwner} = '' OR owner_subject = ${selectedOwner})
+           AND (${selectedStatus} = '' OR status = ${selectedStatus})
+         ORDER BY created_at DESC, id DESC
+         LIMIT ${pageSize}`);
+    return check from PersistedAdminScanItem item in scanStream
+        select item;
+}
+
+function loadAdminAuditEvents(int pageSize)
+        returns PersistedAuditEvent[]|error {
+    check validateHistoryLimit(pageSize);
+    postgresql:Client db = check getDatabaseClient();
+    stream<PersistedAuditEvent, sql:Error?> auditStream = db->query(`
+        SELECT id::text AS "id",
+               to_char(occurred_at AT TIME ZONE 'UTC',
+                       'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "occurredAt",
+               actor_type AS "actorType", actor_subject AS "actorSubject",
+               owner_subject AS "ownerSubject", action AS "action",
+               outcome AS "outcome", request_id::text AS "requestId",
+               scan_job_id::text AS "scanJobId",
+               allowed_target_id::text AS "allowedTargetId",
+               metadata AS "metadata"
+          FROM audit_logs
+         ORDER BY occurred_at DESC, id DESC
+         LIMIT ${pageSize}`);
+    return check from PersistedAuditEvent item in auditStream
+        select item;
+}
+
+function loadAdminUsage() returns PersistedAdminUsage|error {
+    postgresql:Client db = check getDatabaseClient();
+    stream<PersistedAdminUsage, sql:Error?> usageStream = db->query(`
+        SELECT count(DISTINCT owner_subject)::bigint AS "totalUsers",
+               count(*)::bigint AS "totalScans",
+               count(*) FILTER (WHERE status = 'QUEUED')::bigint AS "queuedScans",
+               count(*) FILTER (WHERE status = 'RUNNING')::bigint AS "runningScans",
+               count(*) FILTER (WHERE status = 'COMPLETED')::bigint AS "completedScans",
+               count(*) FILTER (WHERE status = 'FAILED')::bigint AS "failedScans",
+               count(*) FILTER (WHERE status = 'BLOCKED')::bigint AS "blockedScans",
+               (SELECT count(*) FROM allowed_targets WHERE enabled)::bigint
+                   AS "enabledAllowedTargets"
+          FROM scan_jobs`);
+    PersistedAdminUsage[] rows = check from PersistedAdminUsage item in usageStream
+        select item;
+    if rows.length() != 1 {
+        return error("admin usage query returned an unexpected row count");
+    }
+    return rows[0];
 }
 
 function validateNetworkAllowedTarget(string target, AllowedTargetKind targetKind)

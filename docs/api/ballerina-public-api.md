@@ -133,6 +133,28 @@ GET /api/v1/scans?pageSize=20&cursorCreatedAt=2026-08-05T10:00:00Z&cursorId=9456
 Until WSO2 integration, ownership is scoped with the configured development
 subject.
 
+## Administrator resources
+
+All `/api/v1/admin/*` resources require the exact `securescan-admin` role in
+addition to Gateway authentication and the `securescan:admin` scope. Ordinary
+users receive `403`.
+
+`GET /api/v1/admin/scans` returns jobs across owners with optional
+`ownerSubject` and `status` filters. `pageSize` defaults to 50 and is bounded to
+100. Items add `ownerSubject` and the safe terminal `failureCode` to the normal
+history projection.
+
+`GET /api/v1/admin/audit-logs` returns up to 100 newest immutable events with
+their timestamp, actor, owner, action, outcome, correlation/resource IDs, and
+database-constrained safe metadata.
+
+`GET /api/v1/admin/usage` returns distinct-owner and lifecycle counts plus the
+number of enabled allowed-target policies.
+
+`GET` and `POST /api/v1/admin/allowed-targets` list and create exact hostname,
+IP, or CIDR rules. `DELETE /api/v1/admin/allowed-targets/{targetId}` soft-disables
+the rule and retains its audit history; it does not hard-delete the row.
+
 ## Error response
 
 The API maps validation and downstream failures to a stable public response:

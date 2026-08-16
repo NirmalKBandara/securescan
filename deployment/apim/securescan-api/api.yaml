@@ -2,7 +2,7 @@ type: api
 version: v4.5.0
 data:
   name: SecureScanAPI
-  description: Authenticated scan workflows and admin-only allowed-target management.
+  description: Authenticated scan workflows and admin-only platform management.
   context: /securescan
   version: v1
   provider: admin

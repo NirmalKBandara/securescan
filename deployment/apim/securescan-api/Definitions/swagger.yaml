@@ -14,6 +14,7 @@ servers:
     description: Local WSO2 API Manager Gateway
 tags:
   - name: Scans
+  - name: Administration
   - name: Allowed Targets
 security:
   - oauth2: [securescan:scan]
@@ -209,6 +210,78 @@ paths:
           $ref: '#/components/responses/PayloadTooLarge'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/admin/scans:
+    get:
+      tags: [Administration]
+      operationId: listAdminScans
+      summary: List scans across all users, including blocked and failed scans
+      security:
+        - oauth2: [securescan:admin]
+      parameters:
+        - name: ownerSubject
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 255 }
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [queued, running, completed, failed, blocked]
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: Bounded administrator scan list
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminScanListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/v1/admin/audit-logs:
+    get:
+      tags: [Administration]
+      operationId: listAuditLogs
+      summary: List immutable security and lifecycle audit events
+      security:
+        - oauth2: [securescan:admin]
+      parameters:
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: Latest audit events
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditEventListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/v1/admin/usage:
+    get:
+      tags: [Administration]
+      operationId: getAdminUsage
+      summary: Read platform-wide scan, user, and policy counts
+      security:
+        - oauth2: [securescan:admin]
+      responses:
+        '200':
+          description: Current platform usage counters
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUsageResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/v1/admin/allowed-targets/{targetId}:
     delete:
       tags: [Allowed Targets]
@@ -255,12 +328,12 @@ components:
           tokenUrl: https://localhost:9443/oauth2/token
           scopes:
             securescan:scan: Create scans and read owner-authorized scan data.
-            securescan:admin: Manage the global allowed-target policy.
+            securescan:admin: Read platform administration data and manage the global allowed-target policy.
           x-scopes-mappings:
             securescan:scan:
               display-name: SecureScan scan access
             securescan:admin:
-              display-name: SecureScan allowed-target administration
+              display-name: SecureScan platform administration
           x-scopes-bindings:
             securescan:scan: securescan-user,securescan-admin
             securescan:admin: securescan-admin
@@ -492,6 +565,79 @@ components:
               type: integer
               minimum: 1
               maximum: 100
+    AdminScan:
+      allOf:
+        - $ref: '#/components/schemas/ScanHistoryItem'
+        - type: object
+          required: [ownerSubject]
+          properties:
+            ownerSubject: { type: string, minLength: 1, maxLength: 255 }
+            failureCode: { type: string }
+    AdminScanListResponse:
+      type: object
+      additionalProperties: false
+      required: [success, data]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data:
+          type: object
+          additionalProperties: false
+          required: [items, pageSize]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/AdminScan' }
+            pageSize: { type: integer, minimum: 1, maximum: 100 }
+    AuditEvent:
+      type: object
+      additionalProperties: false
+      required: [id, occurredAt, actorType, action, outcome, metadata]
+      properties:
+        id: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        actorType: { type: string, enum: [USER, ADMIN, SERVICE, SYSTEM] }
+        actorSubject: { type: string, nullable: true }
+        ownerSubject: { type: string, nullable: true }
+        action: { type: string }
+        outcome: { type: string, enum: [SUCCESS, DENIED, FAILURE] }
+        requestId: { type: string, format: uuid, nullable: true }
+        scanJobId: { type: string, format: uuid, nullable: true }
+        allowedTargetId: { type: string, format: uuid, nullable: true }
+        metadata: { type: object, additionalProperties: true }
+    AuditEventListResponse:
+      type: object
+      additionalProperties: false
+      required: [success, data]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data:
+          type: object
+          additionalProperties: false
+          required: [items, pageSize]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/AuditEvent' }
+            pageSize: { type: integer, minimum: 1, maximum: 100 }
+    AdminUsageResponse:
+      type: object
+      additionalProperties: false
+      required: [success, data]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data:
+          type: object
+          additionalProperties: false
+          required: [totalUsers, totalScans, queuedScans, runningScans, completedScans, failedScans, blockedScans, enabledAllowedTargets]
+          properties:
+            totalUsers: { type: integer, minimum: 0 }
+            totalScans: { type: integer, minimum: 0 }
+            queuedScans: { type: integer, minimum: 0 }
+            runningScans: { type: integer, minimum: 0 }
+            completedScans: { type: integer, minimum: 0 }
+            failedScans: { type: integer, minimum: 0 }
+            blockedScans: { type: integer, minimum: 0 }
+            enabledAllowedTargets: { type: integer, minimum: 0 }
     CreateAllowedTargetRequest:
       type: object
       additionalProperties: false

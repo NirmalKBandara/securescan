@@ -278,6 +278,153 @@ service / on new http:Listener(listenerPort) {
         };
     }
 
+    resource function get api/v1/admin/scans(http:Request httpRequest,
+            string? ownerSubject = (), string? status = (), int pageSize = 50)
+            returns AdminScanListOk|BadRequestError|ServiceUnavailableError|
+            UnauthorizedError|ForbiddenError {
+        string requestId = uuid:createType4AsString();
+        AuthContext|UnauthorizedError|ForbiddenError authenticated =
+            authenticateRequest(httpRequest, requestId);
+        AuthContext authContext;
+        if authenticated is AuthContext {
+            authContext = authenticated;
+        } else {
+            return authenticated;
+        }
+        ForbiddenError? adminError = requireAdmin(authContext, requestId);
+        if adminError is ForbiddenError {
+            return adminError;
+        }
+        if pageSize < 1 || pageSize > 100 {
+            return badRequest(INVALID_REQUEST,
+                    "Page size must be between 1 and 100",
+                    {"field": "pageSize", min: 1, max: 100}, requestId);
+        }
+        string? selectedOwner = ();
+        if ownerSubject is string {
+            string normalizedOwner = ownerSubject.trim();
+            if normalizedOwner == "" || normalizedOwner.length() > 255 {
+                return badRequest(INVALID_REQUEST, "Owner subject is invalid",
+                        {"field": "ownerSubject"}, requestId);
+            }
+            selectedOwner = normalizedOwner;
+        }
+        string? selectedStatus = ();
+        if status is string {
+            string normalizedStatus = status.trim().toUpperAscii();
+            if normalizedStatus != "QUEUED" && normalizedStatus != "RUNNING" &&
+                    normalizedStatus != "COMPLETED" &&
+                    normalizedStatus != "FAILED" && normalizedStatus != "BLOCKED" {
+                return badRequest(INVALID_REQUEST, "Scan status is invalid",
+                        {"field": "status"}, requestId);
+            }
+            selectedStatus = normalizedStatus;
+        }
+        PersistedAdminScanItem[]|error loaded =
+            loadAdminScans(selectedOwner, selectedStatus, pageSize);
+        if loaded is error {
+            log:printError("Unable to load administrator scans", loaded,
+                    requestId = requestId);
+            return persistenceUnavailable(requestId);
+        }
+        AdminScanItem[] items = from PersistedAdminScanItem item in loaded
+            select {
+                id: item.id,
+                ownerSubject: item.ownerSubject,
+                status: persistedPublicStatus(item.status),
+                target: item.target,
+                startPort: item.startPort,
+                endPort: item.endPort,
+                failureCode: item.failureCode,
+                createdAt: item.createdAt,
+                updatedAt: item.updatedAt
+            };
+        AdminScanListData data = {items: items, pageSize: pageSize};
+        return {headers: {requestId: requestId}, body: {success: true, data: data}};
+    }
+
+    resource function get api/v1/admin/'audit\-logs(http:Request httpRequest,
+            int pageSize = 50)
+            returns AuditEventListOk|BadRequestError|ServiceUnavailableError|
+            UnauthorizedError|ForbiddenError {
+        string requestId = uuid:createType4AsString();
+        AuthContext|UnauthorizedError|ForbiddenError authenticated =
+            authenticateRequest(httpRequest, requestId);
+        AuthContext authContext;
+        if authenticated is AuthContext {
+            authContext = authenticated;
+        }
+        else {
+            return authenticated;
+        }
+        ForbiddenError? adminError = requireAdmin(authContext, requestId);
+        if adminError is ForbiddenError {
+            return adminError;
+        }
+        if pageSize < 1 || pageSize > 100 {
+            return badRequest(INVALID_REQUEST,
+                    "Page size must be between 1 and 100",
+                    {"field": "pageSize", min: 1, max: 100}, requestId);
+        }
+        PersistedAuditEvent[]|error loaded = loadAdminAuditEvents(pageSize);
+        if loaded is error {
+            log:printError("Unable to load administrator audit events", loaded,
+                    requestId = requestId);
+            return persistenceUnavailable(requestId);
+        }
+        AuditEventData[] items = from PersistedAuditEvent item in loaded
+            select {
+                id: item.id,
+                occurredAt: item.occurredAt,
+                actorType: item.actorType,
+                actorSubject: item.actorSubject,
+                ownerSubject: item.ownerSubject,
+                action: item.action,
+                outcome: item.outcome,
+                requestId: item.requestId,
+                scanJobId: item.scanJobId,
+                allowedTargetId: item.allowedTargetId,
+                metadata: item.metadata
+            };
+        AuditEventListData data = {items: items, pageSize: pageSize};
+        return {headers: {requestId: requestId}, body: {success: true, data: data}};
+    }
+
+    resource function get api/v1/admin/usage(http:Request httpRequest)
+            returns AdminUsageOk|ServiceUnavailableError|UnauthorizedError|ForbiddenError {
+        string requestId = uuid:createType4AsString();
+        AuthContext|UnauthorizedError|ForbiddenError authenticated =
+            authenticateRequest(httpRequest, requestId);
+        AuthContext authContext;
+        if authenticated is AuthContext {
+            authContext = authenticated;
+        }
+        else {
+            return authenticated;
+        }
+        ForbiddenError? adminError = requireAdmin(authContext, requestId);
+        if adminError is ForbiddenError {
+            return adminError;
+        }
+        PersistedAdminUsage|error loaded = loadAdminUsage();
+        if loaded is error {
+            log:printError("Unable to load administrator usage", loaded,
+                    requestId = requestId);
+            return persistenceUnavailable(requestId);
+        }
+        AdminUsageData data = {
+            totalUsers: loaded.totalUsers,
+            totalScans: loaded.totalScans,
+            queuedScans: loaded.queuedScans,
+            runningScans: loaded.runningScans,
+            completedScans: loaded.completedScans,
+            failedScans: loaded.failedScans,
+            blockedScans: loaded.blockedScans,
+            enabledAllowedTargets: loaded.enabledAllowedTargets
+        };
+        return {headers: {requestId: requestId}, body: {success: true, data: data}};
+    }
+
     resource function get api/v1/admin/'allowed\-targets(http:Request httpRequest,
             boolean includeDisabled = false, int pageSize = 100)
             returns AllowedTargetListOk|BadRequestError|ServiceUnavailableError|

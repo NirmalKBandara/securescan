@@ -169,6 +169,12 @@ Ballerina, and Next.js use lean multi-stage builds, non-root runtime users,
 service health checks, and build contexts that exclude local dependencies and
 configuration files. Live image builds remain pending on a Docker-capable host.
 
+The Day 35 Compose topology is repository-complete. All six services have
+health-aware dependency ordering, PostgreSQL bootstraps an empty volume with
+ordered migrations, application-only networks limit service discovery, and
+only loopback frontend/WSO2 ports are published. Live Compose acceptance
+remains pending on a Docker-capable host.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -197,6 +203,7 @@ Unauthorized scanning is prohibited.
 * [ ] Integrate WSO2 API Manager
 * [x] Add PostgreSQL Docker Compose service
 * [x] Add application Dockerfiles and health checks
+* [x] Compose the complete six-service topology
 * [ ] Add automated tests
 * [ ] Complete documentation
 
@@ -263,3 +270,7 @@ with the maintained [`threat model`](docs/security/threat-model.md) and
 The image build, non-root runtime, and independent health-check procedure is
 documented in
 [`Day 34 application Dockerfiles`](docs/deployment/day-34-application-dockerfiles.md).
+
+The complete service graph, database bootstrap, port boundary, dependency
+ordering, and DNS-isolation checks are documented in
+[`Day 35 full Compose topology`](docs/deployment/day-35-full-compose-topology.md).

@@ -1,9 +1,10 @@
 # Local platform services
 
-The development Compose project runs the PostgreSQL system of record, WSO2
-Identity Server 7.3.0, and WSO2 API Manager 4.7.0. All published ports bind to
-`127.0.0.1`; they are not reachable from other machines unless the operator
-deliberately changes that boundary.
+The development Compose project runs the Next.js frontend, Ballerina API, Go
+scanner, PostgreSQL system of record, WSO2 Identity Server 7.3.0, and WSO2 API
+Manager 4.7.0. All published ports bind to `127.0.0.1`; they are not reachable
+from other machines unless the operator deliberately changes that boundary.
+PostgreSQL, Ballerina, and Go are private to segmented service networks.
 
 ## Start the services
 
@@ -11,9 +12,14 @@ From the repository root:
 
 ```sh
 cp deployment/.env.example deployment/.env
-docker compose --env-file deployment/.env -f deployment/compose.yaml up -d --wait
+docker compose --env-file deployment/.env -f deployment/compose.yaml up -d --build --wait
 docker compose --env-file deployment/.env -f deployment/compose.yaml ps
 ```
+
+For an empty PostgreSQL volume, the official entrypoint applies the six mounted
+up migrations in order. Existing volumes must be upgraded with the documented
+database migration command. Run `deployment/verify-compose-topology.sh` to
+check builds, readiness, port exposure, and network DNS isolation together.
 
 The WSO2 services can take several minutes to become ready on first start.
 Compose waits
@@ -40,9 +46,8 @@ API Manager uses separate host ports:
 - Developer Portal: `https://localhost:9444/devportal`
 - HTTPS Gateway: `https://localhost:8243`
 
-The API Manager container maps `host.docker.internal` to the development host
-so a Day 27 endpoint can reach Ballerina at
-`http://host.docker.internal:9090`. See the
+The API Manager container reaches Ballerina privately at
+`http://ballerina-api:9090`. See the
 [Day 26 API Manager foundation](../docs/gateway/day-26-wso2-api-manager.md)
 for the full component and authentication plan.
 
@@ -68,7 +73,9 @@ before beginning application-container deployment work.
 Override a host port without editing the Compose file:
 
 ```sh
-WSO2_IS_HTTPS_PORT=9444 docker compose -f deployment/compose.yaml up -d --wait
+WSO2_IS_HTTPS_PORT=9543 docker compose \
+  --env-file deployment/.env \
+  -f deployment/compose.yaml up -d --build --wait
 ```
 
 Only the TLS listener is published. WSO2's plain HTTP listener and internal
@@ -95,3 +102,6 @@ docker compose -f deployment/compose.yaml down --volumes
 Days 21–25 establish identity, sessions, route protection, scan ownership, and
 API-side roles. Day 26 adds the API management runtime; Day 27 imports and
 publishes the versioned API through its Gateway.
+
+The complete service/network matrix and acceptance procedure are documented in
+the [Day 35 Compose runbook](../docs/deployment/day-35-full-compose-topology.md).

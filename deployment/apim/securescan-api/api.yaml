@@ -10,7 +10,7 @@ data:
   endpointConfig:
     endpoint_type: http
     production_endpoints:
-      url: http://host.docker.internal:9090
+      url: http://ballerina-api:9090
       config:
         actionSelect: fault
         actionDuration: "10000"

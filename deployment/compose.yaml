@@ -8,18 +8,75 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-securescan_dev}
       POSTGRES_USER: ${POSTGRES_USER:-securescan}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-securescan_dev_only}
-    ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-development-data:/var/lib/postgresql/data
+      - ../database/migrations/V001__create_core_tables.up.sql:/docker-entrypoint-initdb.d/001-create-core-tables.sql:ro
+      - ../database/migrations/V002__create_core_indexes.up.sql:/docker-entrypoint-initdb.d/002-create-core-indexes.sql:ro
+      - ../database/migrations/V003__add_scan_dispatch_lease.up.sql:/docker-entrypoint-initdb.d/003-add-scan-dispatch-lease.sql:ro
+      - ../database/migrations/V004__harden_scan_audit_events.up.sql:/docker-entrypoint-initdb.d/004-harden-scan-audit-events.sql:ro
+      - ../database/migrations/V005__complete_allowed_target_administration.up.sql:/docker-entrypoint-initdb.d/005-complete-allowed-target-administration.sql:ro
+      - ../database/migrations/V006__enforce_target_authorization.up.sql:/docker-entrypoint-initdb.d/006-enforce-target-authorization.sql:ro
     healthcheck:
       test:
         - CMD-SHELL
         - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
-      interval: 2s
+      interval: 5s
       timeout: 3s
       retries: 20
       start_period: 5s
+    networks:
+      - data
+
+  scanner-engine:
+    build:
+      context: ../scanner-engine
+    image: securescan/scanner-engine:day35
+    restart: unless-stopped
+    init: true
+    environment:
+      ALLOW_PRIVATE_TARGETS: "false"
+      MAX_PORTS_PER_SCAN: ${MAX_PORTS_PER_SCAN:-1000}
+      MAX_CONCURRENT_PORTS: ${MAX_CONCURRENT_PORTS:-100}
+      MAX_ACTIVE_SCANS: ${MAX_ACTIVE_SCANS:-10}
+      MAX_RETAINED_JOBS: ${MAX_RETAINED_JOBS:-1000}
+      SCAN_TIMEOUT_MS: ${SCAN_TIMEOUT_MS:-1000}
+    networks:
+      - scanner
+
+  ballerina-api:
+    build:
+      context: ../ballerina-api
+    image: securescan/ballerina-api:day35
+    restart: unless-stopped
+    init: true
+    environment:
+      BAL_CONFIG_VAR_LISTENERPORT: "9090"
+      BAL_CONFIG_VAR_SERVICENAME: securescan-api
+      BAL_CONFIG_VAR_MAXPORTSPERSCAN: ${MAX_PORTS_PER_SCAN:-1000}
+      BAL_CONFIG_VAR_MAXREQUESTBODYBYTES: ${API_MAX_REQUEST_BYTES:-4096}
+      BAL_CONFIG_VAR_AUTHENTICATIONENABLED: "true"
+      BAL_CONFIG_VAR_GATEWAYSHAREDSECRET: ${SECURESCAN_GATEWAY_SHARED_SECRET:-replace-with-at-least-32-random-characters}
+      BAL_CONFIG_VAR_SCANNERSERVICEURL: http://scanner-engine:8081
+      BAL_CONFIG_VAR_SCANNERCONNECTTIMEOUT: ${SCANNER_CONNECT_TIMEOUT_SECONDS:-2.0}
+      BAL_CONFIG_VAR_SCANNERRESPONSETIMEOUT: ${SCANNER_RESPONSE_TIMEOUT_SECONDS:-5.0}
+      BAL_CONFIG_VAR_PERSISTENCEENABLED: "true"
+      BAL_CONFIG_VAR_DATABASEHOST: postgres
+      BAL_CONFIG_VAR_DATABASEPORT: "5432"
+      BAL_CONFIG_VAR_DATABASENAME: ${POSTGRES_DB:-securescan_dev}
+      BAL_CONFIG_VAR_DATABASEUSER: ${POSTGRES_USER:-securescan}
+      BAL_CONFIG_VAR_DATABASEPASSWORD: ${POSTGRES_PASSWORD:-securescan_dev_only}
+      BAL_CONFIG_VAR_MAXACTIVESCANSPEROWNER: "1"
+      BAL_CONFIG_VAR_DISPATCHLEASESECONDS: ${DISPATCH_LEASE_SECONDS:-15}
+      BAL_CONFIG_VAR_RECONCILIATIONINTERVALSECONDS: ${RECONCILIATION_INTERVAL_SECONDS:-5}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      scanner-engine:
+        condition: service_healthy
+    networks:
+      - integration
+      - scanner
+      - data
 
   identity-server:
     image: wso2/wso2is:7.3.0
@@ -37,10 +94,12 @@ services:
         - --show-error
         - --insecure
         - https://localhost:9443/api/health-check/v1.0/health
-      interval: 10s
+      interval: 15s
       timeout: 10s
       retries: 30
       start_period: 120s
+    networks:
+      - identity
 
   api-manager:
     image: ${WSO2_APIM_IMAGE:-wso2/wso2am:4.7.0}
@@ -48,8 +107,6 @@ services:
     ports:
       - "127.0.0.1:${WSO2_APIM_HTTPS_PORT:-9444}:9443"
       - "127.0.0.1:${WSO2_APIM_GATEWAY_HTTPS_PORT:-8243}:8243"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       - api-manager-development-data:/home/wso2carbon/wso2am-${WSO2_APIM_HOME_VERSION:-4.7.0}/repository/database
     healthcheck:
@@ -65,6 +122,62 @@ services:
       timeout: 15s
       retries: 40
       start_period: 180s
+    depends_on:
+      ballerina-api:
+        condition: service_healthy
+      identity-server:
+        condition: service_healthy
+    networks:
+      - identity
+      - gateway
+      - integration
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: /backend
+    image: securescan/frontend:day35
+    restart: unless-stopped
+    init: true
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: /backend
+      APP_BASE_URL: http://localhost:${FRONTEND_PORT:-3000}
+      OIDC_ISSUER: ${COMPOSE_OIDC_ISSUER:-https://identity-server:9443/oauth2/token}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-replace-with-wso2-client-id}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-replace-with-wso2-client-secret}
+      OIDC_ROLE_CLAIM: ${OIDC_ROLE_CLAIM:-groups}
+      OIDC_SCOPES: ${OIDC_SCOPES:-openid profile email securescan:scan}
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:-replace-with-at-least-32-random-characters}
+      SECURESCAN_API_MODE: gateway
+      API_MANAGER_GATEWAY_URL: https://api-manager:8243/securescan/v1
+      API_MAX_REQUEST_BYTES: ${API_MAX_REQUEST_BYTES:-4096}
+      API_GATEWAY_TIMEOUT_MS: ${API_GATEWAY_TIMEOUT_MS:-10000}
+      NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-}
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      api-manager:
+        condition: service_healthy
+      identity-server:
+        condition: service_healthy
+    networks:
+      - identity
+      - gateway
+
+networks:
+  identity:
+    name: securescan-identity
+  gateway:
+    name: securescan-gateway
+  integration:
+    name: securescan-integration
+    internal: true
+  scanner:
+    name: securescan-scanner
+  data:
+    name: securescan-data
+    internal: true
 
 volumes:
   postgres-development-data:

@@ -1,0 +1,9 @@
+.git
+.gitignore
+.devcontainer.json
+Config.toml
+Dockerfile*
+README.md
+target
+tests
+*.log

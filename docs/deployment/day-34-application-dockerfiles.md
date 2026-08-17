@@ -87,8 +87,8 @@ docker rm --force securescan-scanner-day34 securescan-frontend-day34
 
 ## Local verification record
 
-The native Go test/build and frontend lint, type check, 83 tests, and production
-build pass. Docker is not installed on the implementation workstation, and its
-Ballerina installation has no valid `JAVA_HOME`, so the three clean image
-builds and live container health checks must be run on a Docker-capable host
-before recording the acceptance check as executed.
+The native Go test/build, Ballerina 47-test suite and executable build, and
+frontend lint, type check, 83 tests, and production build pass. Docker is not
+installed on the implementation workstation, so the three clean image builds
+and live container health checks must be run on a Docker-capable host before
+recording the acceptance check as executed.

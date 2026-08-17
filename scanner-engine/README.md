@@ -199,6 +199,12 @@ go run ./cmd/cli \
 go build ./...
 ```
 
+Build the non-root runtime image from the repository root:
+
+```bash
+docker build --tag securescan-scanner:local scanner-engine
+```
+
 ## Test
 
 ```bash

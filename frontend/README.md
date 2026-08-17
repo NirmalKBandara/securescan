@@ -29,6 +29,15 @@ Set `OIDC_ROLE_CLAIM` to the WSO2 claim that carries exact
 `securescan-user` / `securescan-admin` values; it defaults to `groups`.
 `OIDC_SCOPES` must include both `openid` and the API's `securescan:scan` scope.
 
+Build the standalone, non-root runtime image from the repository root:
+
+```bash
+docker build --tag securescan-frontend:local frontend
+```
+
+The container exposes an unauthenticated liveness resource at
+`GET /api/health`; application routes retain their existing authorization.
+
 `/backend` is an authenticated route-handler proxy rather than a transparent
 rewrite. In `direct` mode it derives trusted identity headers from the encrypted
 session and calls loopback-only Ballerina with `SECURESCAN_API_GATEWAY_SECRET`.

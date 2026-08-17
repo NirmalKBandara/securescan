@@ -124,6 +124,15 @@ bal build
 
 Generated build artifacts are written to `target/`.
 
+Build the Java 21, non-root runtime image from the repository root:
+
+```bash
+docker build --tag securescan-api:local ballerina-api
+```
+
+`Config.toml` is excluded from the image. Supply configuration with
+`BAL_CONFIG_VAR_*` environment variables when the container starts.
+
 ## Create a Scan
 
 ```bash

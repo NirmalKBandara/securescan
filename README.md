@@ -164,6 +164,11 @@ special-use addresses, DNS set changes, more than 16 answers, and more than
 1,000 ports fail closed. The live multi-user/WSO2/PostgreSQL matrix remains a
 required pre-deployment gate.
 
+The Day 34 application-container checkpoint is repository-complete. Go,
+Ballerina, and Next.js use lean multi-stage builds, non-root runtime users,
+service health checks, and build contexts that exclude local dependencies and
+configuration files. Live image builds remain pending on a Docker-capable host.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -191,6 +196,7 @@ Unauthorized scanning is prohibited.
 * [x] Integrate WSO2 Identity Server
 * [ ] Integrate WSO2 API Manager
 * [x] Add PostgreSQL Docker Compose service
+* [x] Add application Dockerfiles and health checks
 * [ ] Add automated tests
 * [ ] Complete documentation
 
@@ -253,3 +259,7 @@ The authorization, DNS pinning, abuse-limit, and audit evidence is documented
 in [`Day 33 security checkpoint`](docs/security/day-33-security-checkpoint.md),
 with the maintained [`threat model`](docs/security/threat-model.md) and
 [`authorized-use policy`](docs/security/authorized-use-policy.md).
+
+The image build, non-root runtime, and independent health-check procedure is
+documented in
+[`Day 34 application Dockerfiles`](docs/deployment/day-34-application-dockerfiles.md).

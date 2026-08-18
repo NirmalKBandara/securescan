@@ -81,9 +81,10 @@ script prints the exact project prefix that must later be cleaned up.
 
 ## Verification status on this workstation
 
-Shell syntax, configuration validation, secret checks, `git diff --check`, and
-all Go tests pass. The recovery gate exits with a clear Docker requirement
-before mutating anything because Docker is not installed on this workstation.
-Consequently, no cold-start duration or live login-to-results evidence is
-claimed here; run this document's gate on a Docker-capable host before marking
-the live acceptance check complete.
+Shell syntax, configuration validation, secret checks, `git diff --check`, all
+Go and Ballerina tests, all 86 frontend tests, lint, typecheck, and the
+production frontend build pass. The recovery gate exits with a clear Docker
+requirement before mutating anything because Docker is not installed on this
+workstation. Consequently, no cold-start duration or live login-to-results
+evidence is claimed here; run this document's gate on a Docker-capable host
+before marking the live acceptance check complete.

@@ -5,9 +5,9 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-securescan_dev}
-      POSTGRES_USER: ${POSTGRES_USER:-securescan}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-securescan_dev_only}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required; copy deployment/.env.example to deployment/.env}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required; copy deployment/.env.example to deployment/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required; generate a development-only password}
     volumes:
       - postgres-development-data:/var/lib/postgresql/data
       - ../database/migrations/V001__create_core_tables.up.sql:/docker-entrypoint-initdb.d/001-create-core-tables.sql:ro
@@ -35,6 +35,7 @@ services:
     init: true
     environment:
       ALLOW_PRIVATE_TARGETS: "false"
+      SCANNER_ISOLATED_DEVELOPMENT: "false"
       MAX_PORTS_PER_SCAN: ${MAX_PORTS_PER_SCAN:-1000}
       MAX_CONCURRENT_PORTS: ${MAX_CONCURRENT_PORTS:-100}
       MAX_ACTIVE_SCANS: ${MAX_ACTIVE_SCANS:-10}
@@ -55,16 +56,16 @@ services:
       BAL_CONFIG_VAR_MAXPORTSPERSCAN: ${MAX_PORTS_PER_SCAN:-1000}
       BAL_CONFIG_VAR_MAXREQUESTBODYBYTES: ${API_MAX_REQUEST_BYTES:-4096}
       BAL_CONFIG_VAR_AUTHENTICATIONENABLED: "true"
-      BAL_CONFIG_VAR_GATEWAYSHAREDSECRET: ${SECURESCAN_GATEWAY_SHARED_SECRET:-replace-with-at-least-32-random-characters}
+      BAL_CONFIG_VAR_GATEWAYSHAREDSECRET: ${SECURESCAN_GATEWAY_SHARED_SECRET:?SECURESCAN_GATEWAY_SHARED_SECRET is required; generate at least 32 random characters}
       BAL_CONFIG_VAR_SCANNERSERVICEURL: http://scanner-engine:8081
       BAL_CONFIG_VAR_SCANNERCONNECTTIMEOUT: ${SCANNER_CONNECT_TIMEOUT_SECONDS:-2.0}
       BAL_CONFIG_VAR_SCANNERRESPONSETIMEOUT: ${SCANNER_RESPONSE_TIMEOUT_SECONDS:-5.0}
       BAL_CONFIG_VAR_PERSISTENCEENABLED: "true"
       BAL_CONFIG_VAR_DATABASEHOST: postgres
       BAL_CONFIG_VAR_DATABASEPORT: "5432"
-      BAL_CONFIG_VAR_DATABASENAME: ${POSTGRES_DB:-securescan_dev}
-      BAL_CONFIG_VAR_DATABASEUSER: ${POSTGRES_USER:-securescan}
-      BAL_CONFIG_VAR_DATABASEPASSWORD: ${POSTGRES_PASSWORD:-securescan_dev_only}
+      BAL_CONFIG_VAR_DATABASENAME: ${POSTGRES_DB:?POSTGRES_DB is required}
+      BAL_CONFIG_VAR_DATABASEUSER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      BAL_CONFIG_VAR_DATABASEPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       BAL_CONFIG_VAR_MAXACTIVESCANSPEROWNER: "1"
       BAL_CONFIG_VAR_DISPATCHLEASESECONDS: ${DISPATCH_LEASE_SECONDS:-15}
       BAL_CONFIG_VAR_RECONCILIATIONINTERVALSECONDS: ${RECONCILIATION_INTERVAL_SECONDS:-5}
@@ -144,11 +145,11 @@ services:
       NEXT_PUBLIC_API_BASE_URL: /backend
       APP_BASE_URL: http://localhost:${FRONTEND_PORT:-3000}
       OIDC_ISSUER: ${COMPOSE_OIDC_ISSUER:-https://identity-server:9443/oauth2/token}
-      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-replace-with-wso2-client-id}
-      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-replace-with-wso2-client-secret}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?OIDC_CLIENT_ID is required after registering the WSO2 application}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?OIDC_CLIENT_SECRET is required after registering the WSO2 application}
       OIDC_ROLE_CLAIM: ${OIDC_ROLE_CLAIM:-groups}
       OIDC_SCOPES: ${OIDC_SCOPES:-openid profile email securescan:scan}
-      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:-replace-with-at-least-32-random-characters}
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:?AUTH_SESSION_SECRET is required; generate at least 32 random characters}
       SECURESCAN_API_MODE: gateway
       API_MANAGER_GATEWAY_URL: https://api-manager:8243/securescan/v1
       API_MAX_REQUEST_BYTES: ${API_MAX_REQUEST_BYTES:-4096}

@@ -178,6 +178,16 @@ postgres-data/
 # Docker
 docker-data/
 
+# Generated WSO2 runtime state, certificates, and local overrides
+deployment/wso2/**/repository/database/
+deployment/wso2/**/repository/logs/
+deployment/wso2/**/*.jks
+deployment/wso2/**/*.p12
+deployment/wso2/**/*.pem
+deployment/wso2/**/*.key
+deployment/wso2/**/deployment.toml
+!deployment/wso2/**/*.example.toml
+
 # IDEs and editors
 .vscode/
 .idea/

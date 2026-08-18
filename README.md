@@ -175,6 +175,14 @@ ordered migrations, application-only networks limit service discovery, and
 only loopback frontend/WSO2 ports are published. Live Compose acceptance
 remains pending on a Docker-capable host.
 
+The Day 36 configuration checkpoint is repository-complete. Compose now fails
+clearly for missing credentials, a preflight validates the complete local
+environment without sourcing it, frontend and Ballerina reject placeholder
+secrets during startup, and generated WSO2 state is excluded from Git. A
+tracked-file and Git-history credential check plus a single WSO2/database setup
+runbook make the local boundary reproducible. Live Compose validation remains
+pending on a Docker-capable host.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -204,6 +212,7 @@ Unauthorized scanning is prohibited.
 * [x] Add PostgreSQL Docker Compose service
 * [x] Add application Dockerfiles and health checks
 * [x] Compose the complete six-service topology
+* [x] Harden deployment configuration and secret handling
 * [ ] Add automated tests
 * [ ] Complete documentation
 
@@ -274,3 +283,7 @@ documented in
 The complete service graph, database bootstrap, port boundary, dependency
 ordering, and DNS-isolation checks are documented in
 [`Day 35 full Compose topology`](docs/deployment/day-35-full-compose-topology.md).
+
+The validated environment contract, WSO2 initialization order, migration
+procedure, and secret-review evidence are documented in
+[`Day 36 configuration and secrets`](docs/deployment/day-36-configuration-secrets.md).

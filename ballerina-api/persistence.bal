@@ -8,19 +8,36 @@ configurable string databaseHost = "localhost";
 configurable int databasePort = 5432;
 configurable string databaseName = "securescan_dev";
 configurable string databaseUser = "securescan";
-configurable string databasePassword = "securescan_dev_only";
+configurable string databasePassword = "";
 configurable int maxActiveScansPerOwner = 1;
 configurable int dispatchLeaseSeconds = 15;
 configurable int reconciliationIntervalSeconds = 5;
 
-final postgresql:Client? databaseClient = persistenceEnabled ? check new (
+function createDatabaseClient() returns postgresql:Client?|error {
+    if !persistenceEnabled {
+        return ();
+    }
+    if databaseHost.trim().length() == 0 || databaseName.trim().length() == 0 ||
+            databaseUser.trim().length() == 0 {
+        return error("database host, name, and user are required when persistence is enabled");
+    }
+    if databasePassword.length() < 32 ||
+            databasePassword.startsWith("replace-with") ||
+            databasePassword.startsWith("change-me") ||
+            databasePassword == "securescan_dev_only" {
+        return error("databasePassword must be a non-placeholder value of at least 32 characters when persistence is enabled");
+    }
+    return new (
         host = databaseHost,
         port = databasePort,
         username = databaseUser,
         password = databasePassword,
         database = databaseName,
         connectionPool = {maxOpenConnections: 10}
-    ) : ();
+    );
+}
+
+final postgresql:Client? databaseClient = check createDatabaseClient();
 
 type PersistedScanJob record {|
     string id;

@@ -45,6 +45,16 @@ describe("loadOidcConfig", () => {
     },
   );
 
+  it.each(["AUTH_SESSION_SECRET", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"])(
+    "rejects the example placeholder for %s",
+    (name) => {
+      expect(() => loadOidcConfig({
+        ...valid,
+        [name]: "replace-with-a-real-development-value-123456",
+      })).toThrow(`${name} still contains an example placeholder`);
+    },
+  );
+
   it("rejects a short session secret", () => {
     expect(() => loadOidcConfig({ ...valid, AUTH_SESSION_SECRET: "too-short" }))
       .toThrow("AUTH_SESSION_SECRET must contain at least 32 characters");

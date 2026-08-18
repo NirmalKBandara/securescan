@@ -23,8 +23,11 @@ function validateAuthenticationConfiguration() returns error? {
 function validateAuthenticationSettings(boolean enabled, string sharedSecret,
         string configuredServiceName, string configuredScannerServiceUrl)
         returns error? {
-    if enabled && sharedSecret.length() < 32 {
-        return error("gatewaySharedSecret must contain at least 32 characters when authentication is enabled");
+    if enabled && (sharedSecret.length() < 32 ||
+            sharedSecret.startsWith("replace-with") ||
+            sharedSecret.startsWith("change-me") ||
+            sharedSecret.startsWith("changeme")) {
+        return error("gatewaySharedSecret must be a non-placeholder value of at least 32 characters when authentication is enabled");
     }
     // Disabling authentication makes every caller an administrator. Keep that
     // behavior available only to the fixed, isolated contract-test topology so

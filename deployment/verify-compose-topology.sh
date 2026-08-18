@@ -12,6 +12,8 @@ fi
 
 compose=(docker compose --env-file "${environment_file}" --file "${compose_file}")
 
+"${repository_root}/deployment/validate-config.sh" "${environment_file}"
+"${repository_root}/deployment/verify-secrets.sh"
 "${compose[@]}" config --quiet
 "${compose[@]}" build --pull
 "${compose[@]}" up --detach --wait

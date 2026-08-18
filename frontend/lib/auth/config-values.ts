@@ -29,6 +29,14 @@ function required(name: string, value: string | undefined) {
   return candidate;
 }
 
+function requiredCredential(name: string, value: string | undefined) {
+  const candidate = required(name, value);
+  if (/^(replace-with|change-me|changeme)/i.test(candidate)) {
+    throw new Error(`${name} still contains an example placeholder`);
+  }
+  return candidate;
+}
+
 function absoluteHttpUrl(name: string, value: string | undefined) {
   const candidate = required(name, value);
   let url: URL;
@@ -58,15 +66,21 @@ export function loadOidcConfig(
   }
 
   const issuer = absoluteHttpUrl("OIDC_ISSUER", source.OIDC_ISSUER);
-  const sessionSecret = required("AUTH_SESSION_SECRET", source.AUTH_SESSION_SECRET);
+  const sessionSecret = requiredCredential(
+    "AUTH_SESSION_SECRET",
+    source.AUTH_SESSION_SECRET,
+  );
   if (sessionSecret.length < 32) {
     throw new Error("AUTH_SESSION_SECRET must contain at least 32 characters");
   }
 
   return Object.freeze({
     appBaseUrl,
-    clientId: required("OIDC_CLIENT_ID", source.OIDC_CLIENT_ID),
-    clientSecret: required("OIDC_CLIENT_SECRET", source.OIDC_CLIENT_SECRET),
+    clientId: requiredCredential("OIDC_CLIENT_ID", source.OIDC_CLIENT_ID),
+    clientSecret: requiredCredential(
+      "OIDC_CLIENT_SECRET",
+      source.OIDC_CLIENT_SECRET,
+    ),
     issuer,
     postLogoutRedirectUri: new URL("/login", appBaseUrl).toString(),
     redirectUri: new URL("/auth/callback", appBaseUrl).toString(),

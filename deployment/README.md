@@ -12,6 +12,8 @@ From the repository root:
 
 ```sh
 cp deployment/.env.example deployment/.env
+# Create deployment/certs/wso2-local-ca-bundle.pem from the CA that signs the
+# WSO2 certificates; their SANs must match the Compose service names.
 deployment/validate-config.sh deployment/.env
 deployment/verify-secrets.sh
 docker compose --env-file deployment/.env -f deployment/compose.yaml up -d --build --wait

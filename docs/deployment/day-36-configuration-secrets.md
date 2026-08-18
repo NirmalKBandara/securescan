@@ -46,8 +46,9 @@ reject missing or placeholder application secrets during startup.
    the same `SECURESCAN_GATEWAY_SHARED_SECRET` in the Gateway mediation policy.
 5. Configure WSO2 certificates/public URLs so browser-facing endpoints use
    `localhost`, while service-to-service TLS names match their Compose service
-   names. Add the issuing development CA to the frontend container through
-   `NODE_EXTRA_CA_CERTS`. Never disable TLS verification.
+   names. Put the issuing CA bundle at the host path configured by
+   `WSO2_CA_BUNDLE_HOST_PATH`; Compose mounts it read-only and sets
+   `NODE_EXTRA_CA_CERTS` inside the frontend. Never disable TLS verification.
 
 WSO2's embedded databases and bundled certificate are development-only. Any
 generated databases, keystores, PEM files, private keys, logs, and local

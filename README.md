@@ -183,6 +183,14 @@ tracked-file and Git-history credential check plus a single WSO2/database setup
 runbook make the local boundary reproducible. Live Compose validation remains
 pending on a Docker-capable host.
 
+The Day 37 integration/recovery checkpoint is repository-complete. Fresh
+PostgreSQL initialization now records its migration ledger, API Manager health
+includes the Gateway listener, Go drains HTTP work on termination, and an
+isolated recovery harness records cold-start/restart timing, verifies two real
+flows and their persistence, and exercises four dependency outages. Docker is
+not installed on this workstation, so live recovery evidence remains the final
+runtime gate on a Docker-capable host.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -213,6 +221,7 @@ Unauthorized scanning is prohibited.
 * [x] Add application Dockerfiles and health checks
 * [x] Compose the complete six-service topology
 * [x] Harden deployment configuration and secret handling
+* [x] Add Compose integration and recovery verification
 * [ ] Add automated tests
 * [ ] Complete documentation
 
@@ -287,3 +296,7 @@ ordering, and DNS-isolation checks are documented in
 The validated environment contract, WSO2 initialization order, migration
 procedure, and secret-review evidence are documented in
 [`Day 36 configuration and secrets`](docs/deployment/day-36-configuration-secrets.md).
+
+The empty-database startup, two-pass browser flow, restart-persistence proof,
+dependency outage matrix, and evidence format are documented in
+[`Day 37 Compose recovery`](docs/deployment/day-37-compose-recovery.md).

@@ -116,6 +116,23 @@ if [[ -z "${values[OIDC_ROLE_CLAIM]:-}" ]]; then
   exit 1
 fi
 
+ca_bundle_path="${values[WSO2_CA_BUNDLE_HOST_PATH]:-}"
+if [[ -z "${ca_bundle_path}" ]]; then
+  echo "WSO2_CA_BUNDLE_HOST_PATH is required." >&2
+  exit 1
+fi
+if [[ "${ca_bundle_path}" != /* ]]; then
+  ca_bundle_path="${repository_root}/deployment/${ca_bundle_path#./}"
+fi
+if [[ ! -r "${ca_bundle_path}" ]]; then
+  echo "WSO2_CA_BUNDLE_HOST_PATH is not a readable PEM file: ${ca_bundle_path}" >&2
+  exit 1
+fi
+if ! grep -q -- '-----BEGIN CERTIFICATE-----' "${ca_bundle_path}"; then
+  echo "WSO2_CA_BUNDLE_HOST_PATH does not contain a PEM certificate." >&2
+  exit 1
+fi
+
 image_version="${values[WSO2_APIM_IMAGE]##*:}"
 if [[ "${image_version}" != "${values[WSO2_APIM_HOME_VERSION]:-}" ]]; then
   echo "WSO2_APIM_HOME_VERSION must match the WSO2_APIM_IMAGE tag." >&2

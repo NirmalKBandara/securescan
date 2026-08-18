@@ -12,6 +12,8 @@ From the repository root:
 
 ```sh
 cp deployment/.env.example deployment/.env
+deployment/validate-config.sh deployment/.env
+deployment/verify-secrets.sh
 docker compose --env-file deployment/.env -f deployment/compose.yaml up -d --build --wait
 docker compose --env-file deployment/.env -f deployment/compose.yaml ps
 ```
@@ -69,6 +71,12 @@ resources used by the dashboard; their role and UI checks are documented in the
 Complete the live authorization, DNS-change, limit, and audit matrix in the
 [Day 33 security checkpoint](../docs/security/day-33-security-checkpoint.md)
 before beginning application-container deployment work.
+
+The complete configuration inventory, credential-generation rules, initial
+WSO2 setup order, and migration procedure are documented in the
+[Day 36 configuration runbook](../docs/deployment/day-36-configuration-secrets.md).
+Example credential values are intentionally rejected; copying `.env.example`
+is only the first setup step.
 
 Override a host port without editing the Compose file:
 

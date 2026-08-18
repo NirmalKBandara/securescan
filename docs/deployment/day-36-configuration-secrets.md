@@ -80,9 +80,10 @@ The following repository checks pass on this workstation:
 - `.env.example` is rejected because placeholders are intentionally unusable.
 - A fully populated temporary environment passes preflight validation.
 - tracked files and Git history pass the built-in credential signatures;
-- all 86 frontend tests, ESLint, TypeScript, and all Go tests pass;
+- all 86 frontend tests, ESLint, TypeScript, the production frontend build,
+  all Go tests, and the Ballerina tests pass;
 - shell syntax and `git diff --check` pass.
 
-Ballerina tests require Java 21; this workstation only exposes Java 17, so the
-modified module still requires its normal Java 21 verification. Live WSO2 and
-Compose evidence is intentionally deferred to the Docker-capable Day 37 gate.
+Ballerina was verified with the installed Java 21 runtime. Live WSO2 and
+Compose evidence remains intentionally deferred to the Docker-capable Day 37
+gate.

@@ -122,4 +122,14 @@ if [[ "${image_version}" != "${values[WSO2_APIM_HOME_VERSION]:-}" ]]; then
   exit 1
 fi
 
+for name in POSTGRES_VOLUME_NAME IDENTITY_VOLUME_NAME APIM_VOLUME_NAME \
+  IDENTITY_NETWORK_NAME GATEWAY_NETWORK_NAME INTEGRATION_NETWORK_NAME \
+  SCANNER_NETWORK_NAME DATA_NETWORK_NAME; do
+  value="${values[${name}]:-}"
+  if [[ ! "${value}" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]+$ ]]; then
+    echo "${name} must be a non-empty Docker resource name." >&2
+    exit 1
+  fi
+done
+
 echo "SecureScan deployment configuration is complete and contains no example credentials."

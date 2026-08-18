@@ -187,6 +187,7 @@ deployment/wso2/**/*.pem
 deployment/wso2/**/*.key
 deployment/wso2/**/deployment.toml
 !deployment/wso2/**/*.example.toml
+deployment/evidence/
 
 # IDEs and editors
 .vscode/

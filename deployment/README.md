@@ -113,3 +113,9 @@ publishes the versioned API through its Gateway.
 
 The complete service/network matrix and acceptance procedure are documented in
 the [Day 35 Compose runbook](../docs/deployment/day-35-full-compose-topology.md).
+
+Run the isolated cold-start, two-flow, restart-persistence, and dependency
+recovery checkpoint with `deployment/verify-compose-recovery.sh`. Its driver
+contract, evidence files, safe cleanup boundary, and WSO2/TLS prerequisites are
+documented in the
+[Day 37 recovery runbook](../docs/deployment/day-37-compose-recovery.md).

@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	appconfig "github.com/NirmalKBandara/securescan/scanner-engine/internal/config"
 	"github.com/NirmalKBandara/securescan/scanner-engine/internal/models"
@@ -42,10 +47,16 @@ const (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Printf("server failed: %v", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	config, err := appconfig.Load()
 	if err != nil {
-		log.Printf("invalid configuration: %v", err)
-		os.Exit(1)
+		return errors.New("invalid configuration: " + err.Error())
 	}
 
 	listenAddress := serviceAddress
@@ -60,8 +71,33 @@ func main() {
 	}
 
 	log.Printf("%s listening on %s", serviceName, listenAddress)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("server failed: %v", err)
+	serverError := make(chan error, 1)
+	go func() {
+		serverError <- server.ListenAndServe()
+	}()
+
+	signalContext, stop := signal.NotifyContext(
+		context.Background(), os.Interrupt, syscall.SIGTERM,
+	)
+	defer stop()
+
+	select {
+	case err := <-serverError:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
+	case <-signalContext.Done():
+		shutdownContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		log.Printf("%s shutting down", serviceName)
+		if err := server.Shutdown(shutdownContext); err != nil {
+			return errors.New("graceful shutdown: " + err.Error())
+		}
+		if err := <-serverError; err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
 	}
 }
 

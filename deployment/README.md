@@ -12,6 +12,8 @@ From the repository root:
 
 ```sh
 cp deployment/.env.example deployment/.env
+# Create deployment/certs/wso2-local-ca-bundle.pem from the CA that signs the
+# WSO2 certificates; their SANs must match the Compose service names.
 deployment/validate-config.sh deployment/.env
 deployment/verify-secrets.sh
 docker compose --env-file deployment/.env -f deployment/compose.yaml up -d --build --wait
@@ -113,3 +115,9 @@ publishes the versioned API through its Gateway.
 
 The complete service/network matrix and acceptance procedure are documented in
 the [Day 35 Compose runbook](../docs/deployment/day-35-full-compose-topology.md).
+
+Run the isolated cold-start, two-flow, restart-persistence, and dependency
+recovery checkpoint with `deployment/verify-compose-recovery.sh`. Its driver
+contract, evidence files, safe cleanup boundary, and WSO2/TLS prerequisites are
+documented in the
+[Day 37 recovery runbook](../docs/deployment/day-37-compose-recovery.md).

@@ -16,6 +16,7 @@ services:
       - ../database/migrations/V004__harden_scan_audit_events.up.sql:/docker-entrypoint-initdb.d/004-harden-scan-audit-events.sql:ro
       - ../database/migrations/V005__complete_allowed_target_administration.up.sql:/docker-entrypoint-initdb.d/005-complete-allowed-target-administration.sql:ro
       - ../database/migrations/V006__enforce_target_authorization.up.sql:/docker-entrypoint-initdb.d/006-enforce-target-authorization.sql:ro
+      - ./postgres/record-initial-migrations.sql:/docker-entrypoint-initdb.d/999-record-initial-migrations.sql:ro
     healthcheck:
       test:
         - CMD-SHELL
@@ -112,13 +113,12 @@ services:
       - api-manager-development-data:/home/wso2carbon/wso2am-${WSO2_APIM_HOME_VERSION:-4.7.0}/repository/database
     healthcheck:
       test:
-        - CMD
-        - curl
-        - --fail
-        - --silent
-        - --show-error
-        - --insecure
-        - https://localhost:9443/publisher
+        - CMD-SHELL
+        - >-
+          curl --fail --silent --show-error --insecure
+          https://localhost:9443/publisher >/dev/null &&
+          curl --silent --show-error --insecure
+          https://localhost:8243/ >/dev/null
       interval: 15s
       timeout: 15s
       retries: 40
@@ -154,7 +154,9 @@ services:
       API_MANAGER_GATEWAY_URL: https://api-manager:8243/securescan/v1
       API_MAX_REQUEST_BYTES: ${API_MAX_REQUEST_BYTES:-4096}
       API_GATEWAY_TIMEOUT_MS: ${API_GATEWAY_TIMEOUT_MS:-10000}
-      NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-}
+      NODE_EXTRA_CA_CERTS: /etc/securescan/wso2-local-ca-bundle.pem
+    volumes:
+      - ${WSO2_CA_BUNDLE_HOST_PATH:?WSO2_CA_BUNDLE_HOST_PATH is required for frontend TLS trust}:/etc/securescan/wso2-local-ca-bundle.pem:ro
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
     depends_on:
@@ -168,22 +170,22 @@ services:
 
 networks:
   identity:
-    name: securescan-identity
+    name: ${IDENTITY_NETWORK_NAME:-securescan-identity}
   gateway:
-    name: securescan-gateway
+    name: ${GATEWAY_NETWORK_NAME:-securescan-gateway}
   integration:
-    name: securescan-integration
+    name: ${INTEGRATION_NETWORK_NAME:-securescan-integration}
     internal: true
   scanner:
-    name: securescan-scanner
+    name: ${SCANNER_NETWORK_NAME:-securescan-scanner}
   data:
-    name: securescan-data
+    name: ${DATA_NETWORK_NAME:-securescan-data}
     internal: true
 
 volumes:
   postgres-development-data:
-    name: securescan-postgres-development-data
+    name: ${POSTGRES_VOLUME_NAME:-securescan-postgres-development-data}
   identity-server-development-data:
-    name: securescan-identity-server-development-data
+    name: ${IDENTITY_VOLUME_NAME:-securescan-identity-server-development-data}
   api-manager-development-data:
-    name: securescan-api-manager-development-data
+    name: ${APIM_VOLUME_NAME:-securescan-api-manager-development-data}

@@ -154,7 +154,9 @@ services:
       API_MANAGER_GATEWAY_URL: https://api-manager:8243/securescan/v1
       API_MAX_REQUEST_BYTES: ${API_MAX_REQUEST_BYTES:-4096}
       API_GATEWAY_TIMEOUT_MS: ${API_GATEWAY_TIMEOUT_MS:-10000}
-      NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-}
+      NODE_EXTRA_CA_CERTS: /etc/securescan/wso2-local-ca-bundle.pem
+    volumes:
+      - ${WSO2_CA_BUNDLE_HOST_PATH:?WSO2_CA_BUNDLE_HOST_PATH is required for frontend TLS trust}:/etc/securescan/wso2-local-ca-bundle.pem:ro
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
     depends_on:

@@ -34,7 +34,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: ballerina-platform/setup-ballerina@v1
+      - uses: ballerina-platform/setup-ballerina@v1.1.4
         with:
           version: 2201.13.4
       - run: ./scripts/verify.sh ballerina

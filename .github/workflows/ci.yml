@@ -1,0 +1,107 @@
+name: Continuous integration
+
+on:
+  push:
+    branches: [main, "feature/**", "docs/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: Go scanner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: scanner-engine/go.mod
+          cache-dependency-path: scanner-engine/go.mod
+      - run: ./scripts/verify.sh go
+
+  ballerina:
+    name: Ballerina API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: ballerina-platform/setup-ballerina@v1
+        with:
+          version: 2201.13.4
+      - run: ./scripts/verify.sh ballerina
+
+  frontend:
+    name: Next.js frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: ./scripts/verify.sh frontend
+
+  database:
+    name: PostgreSQL migrations
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: securescan_test
+          POSTGRES_USER: securescan
+          POSTGRES_PASSWORD: securescan-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U securescan -d securescan_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: securescan_test
+      PGUSER: securescan
+      PGPASSWORD: securescan-ci-password
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply migrations
+        run: |
+          psql --no-psqlrc --set=ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE schema_migrations (
+            version text PRIMARY KEY,
+            applied_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+          SQL
+          for migration in database/migrations/V*.up.sql; do
+            psql --no-psqlrc --set=ON_ERROR_STOP=1 --file="${migration}"
+            version="$(basename "${migration}" .up.sql)"
+            psql --no-psqlrc --set=ON_ERROR_STOP=1 \
+              --set=migration_version="${version}" \
+              --command="INSERT INTO schema_migrations (version) VALUES (:'migration_version')"
+          done
+          psql --no-psqlrc --set=ON_ERROR_STOP=1 --file=database/seeds/development.sql
+      - name: Verify schema and constraints
+        run: psql --no-psqlrc --set=ON_ERROR_STOP=1 --file=database/tests/verify.sql
+
+  repository:
+    name: Repository safety checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: ./scripts/verify.sh repository

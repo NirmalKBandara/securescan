@@ -191,6 +191,13 @@ flows and their persistence, and exercises four dependency outages. Docker is
 not installed on this workstation, so live recovery evidence remains the final
 runtime gate on a Docker-capable host.
 
+The Day 38 automated-test checkpoint is repository-complete. Pull requests and
+tracked branches now run parallel Go, Ballerina, Next.js, PostgreSQL, and
+repository-safety jobs with pinned toolchain contracts and disposable database
+state. A root verification command provides the same component gates locally;
+the stateful WSO2 browser and recovery exercise remains the Day 37 deployment
+gate.
+
 ## Security Notice
 
 SecureScan is intended only for systems that the user owns or has explicit permission to test. 
@@ -222,7 +229,7 @@ Unauthorized scanning is prohibited.
 * [x] Compose the complete six-service topology
 * [x] Harden deployment configuration and secret handling
 * [x] Add Compose integration and recovery verification
-* [ ] Add automated tests
+* [x] Add automated tests
 * [ ] Complete documentation
 
 A more detailed architecture draft is available in [`architecture`](docs/architecture/architecture-v1.md).
@@ -300,3 +307,7 @@ procedure, and secret-review evidence are documented in
 The empty-database startup, two-pass browser flow, restart-persistence proof,
 dependency outage matrix, and evidence format are documented in
 [`Day 37 Compose recovery`](docs/deployment/day-37-compose-recovery.md).
+
+The pull-request test matrix, local commands, CI security boundary, and manual
+deployment-test boundary are documented in
+[`Day 38 automated tests`](docs/testing/day-38-automated-tests.md).

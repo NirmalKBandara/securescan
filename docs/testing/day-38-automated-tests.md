@@ -13,7 +13,7 @@ without hiding later checks behind an earlier component failure.
 | Ballerina API | service and DNS-pinning tests, then build |
 | Next.js frontend | 86 Vitest tests, ESLint, strict typecheck, production build |
 | PostgreSQL | all six migrations, development seed, schema/constraint behavior |
-| Repository | shell syntax, tracked/history credential patterns, `git diff --check` |
+| Repository | shell syntax, local documentation links, tracked/history credential patterns, `git diff --check` |
 
 The workflow grants read-only repository access, cancels superseded runs for
 the same ref, uses lockfile/module-aware dependency caches, and gives the

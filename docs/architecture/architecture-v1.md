@@ -1,139 +1,189 @@
-# SecureScan Architecture — Version 1
+# SecureScan architecture — version 1
 
-The maintained security boundaries, threats, automated evidence, and residual
-deployment checks are defined in the
-[`SecureScan threat model`](../security/threat-model.md). Authorized operation
-is governed by the
-[`authorized-use policy`](../security/authorized-use-policy.md).
+SecureScan is a six-service, defense-in-depth system for authenticated and
+authorized TCP connect scans. This document describes the repository-complete
+Day 39 architecture. The [threat model](../security/threat-model.md) owns the
+detailed threat/control analysis, and the
+[authorized-use policy](../security/authorized-use-policy.md) governs use.
 
-## Overview
-
-SecureScan is composed of multiple services, with each component responsible for a specific part of the system.
-
-## Components
-
-### Next.js Frontend
-
-Provides the user interface for authentication, submitting scan requests, viewing scan status, and reviewing results.
-
-### WSO2 Identity Server
-
-Handles user authentication, OAuth 2.0, OpenID Connect, and role-based access.
-
-### WSO2 API Manager
-
-Protects and manages the SecureScan API through token validation, throttling, policies, and API lifecycle management.
-
-### Ballerina Integration API
-
-Validates requests, applies business rules, coordinates scan jobs, communicates with the Go scanner, and accesses PostgreSQL.
-
-### Go Scanner Engine
-
-Performs controlled TCP connection scans against authorized targets.
-
-### PostgreSQL
-
-Stores scan jobs, scan results, allowed targets, audit logs, and related metadata.
-
-## Request Flow
+## System context
 
 ```text
-1. The user opens the Next.js frontend.
-2. The user logs in through WSO2 Identity Server.
-3. Identity Server provides authentication tokens.
-4. The frontend sends a scan request through WSO2 API Manager.
-5. API Manager validates the request and applies throttling.
-6. Ballerina validates the target and creates the scan job.
-7. Ballerina sends the job to the Go scanner engine.
-8. The scanner performs the controlled scan.
-9. Results are stored in PostgreSQL.
-10. The frontend retrieves and displays the results.
+Browser
+  │  HTTPS / OIDC Authorization Code + PKCE
+  ├──────────────────────────────► WSO2 Identity Server
+  ▼
+Next.js frontend
+  │  HTTPS / access token unsealed from encrypted HttpOnly cookie
+  ▼
+WSO2 API Manager
+  │  private HTTP / trusted identity mediation
+  ▼
+Ballerina integration API ─────────────► PostgreSQL
+  │  private HTTP / authorized address pins
+  ▼
+Go scanner engine
+  │  bounded TCP connect attempts
+  ▼
+Authorized target
 ```
 
-## Implemented persistence checkpoint (Day 13)
+Only the frontend, Identity Server, API Manager portals, and HTTPS Gateway bind
+to host loopback. Ballerina and PostgreSQL are on Docker `internal` networks;
+Go is unpublished and reachable only on the application network.
 
-The repository currently implements the first service boundary in this
-architecture:
+## Component responsibilities
+
+| Component | Owns | Does not own |
+| --- | --- | --- |
+| Next.js | Browser UI, OIDC PKCE flow, encrypted HttpOnly session, protected routes, same-origin API proxy | Scan authorization or durable data |
+| WSO2 Identity Server | Authentication, OIDC tokens, user identity and application-role claims | API subscription or target policy |
+| WSO2 API Manager | Public API lifecycle, access-token validation, scopes, subscriptions, CORS, throttling, trusted identity mediation | Job lifecycle or scanner safety |
+| Ballerina | Public API, trusted caller identity, exact roles, ownership, validation, target policy, orchestration, persistence, audit | Raw network connections |
+| Go scanner | Internal jobs, DNS-set verification, address safety, pinned dialing, scan concurrency and timeouts | Public identity or allowlist administration |
+| PostgreSQL | Jobs, result observations, allowed-target rules, audit events, dispatch leases, migration ledger | Authentication credentials or transient frontend sessions |
+
+## Trust boundaries
+
+### Browser to frontend
+
+The browser is untrusted. Next.js validates OIDC state, nonce, PKCE, token
+signatures and claims before creating a bounded encrypted HttpOnly session
+cookie. The browser stores that ciphertext, but client-side JavaScript cannot
+read the tokens and only Next.js can unseal them. Protected pages require an exact
+`securescan-user` or `securescan-admin` role, and `/admin` repeats the exact
+administrator check inside the server-rendered page.
+
+### Frontend to API Manager
+
+The authenticated `/backend` route discards browser-supplied identity headers
+and does not forward application cookies. In the default `gateway` mode it adds
+the session's access token and calls the configured API Manager context. Missing
+Gateway configuration fails closed. The direct Ballerina mode is an explicit
+development fallback, not an automatic production bypass.
+
+### API Manager to Ballerina
+
+API Manager validates the token, subscription, operation scope, quota, and CORS
+policy. Its inbound mediation adds the authenticated subject and roles plus a
+shared backend secret. Ballerina requires that secret when authentication is
+enabled, trusts identity only on this protected hop, and independently enforces
+ownership and exact administrator roles. The Ballerina listener remains
+unpublished in Compose.
+
+### Ballerina to scanner
+
+Ballerina authorizes the target against enabled exact-hostname, exact-IP, or
+CIDR rules and safety-checks every resolved address. Dispatch includes the
+complete authorized address set. Go resolves the hostname again, requires an
+exact DNS-set match, rechecks every address and limit, and dials only the pins.
+This closes the time-of-check/time-of-use DNS gap without trusting Ballerina to
+perform network I/O.
+
+### Application services to PostgreSQL
+
+Only Ballerina reads or writes application records. Lifecycle changes and their
+audit event commit in the same transaction. Terminal result observations and
+the terminal job state also commit atomically. Database constraints enforce
+status shape, uniqueness, referential integrity, target-rule form, and safe
+audit metadata.
+
+## Network segmentation
+
+| Network | Members | Purpose |
+| --- | --- | --- |
+| `identity` | Identity Server, API Manager, frontend | OIDC and token-service traffic |
+| `gateway` | API Manager, frontend | Published API path |
+| `integration` | API Manager, Ballerina | Private Gateway-to-service hop; internal |
+| `scanner` | Ballerina, Go | Private scan-dispatch hop |
+| `data` | Ballerina, PostgreSQL | Private persistence hop; internal |
+
+No single application container joins every network. Network separation reduces
+accidental discovery; application authentication, authorization, and safety
+checks remain mandatory even on private networks.
+
+## Authenticated request flow
+
+1. Next.js starts Authorization Code with PKCE at Identity Server.
+2. The callback validates the authorization response and seals identity and
+   tokens into the encrypted HttpOnly session cookie.
+3. The browser calls same-origin `/backend`; Next.js attaches the access token
+   on the server.
+4. API Manager validates the token and applies `securescan:scan` or
+   `securescan:admin`, subscription, CORS, and throttling policy.
+5. Trusted mediation forwards normalized subject/role headers and the shared
+   backend secret to Ballerina.
+6. Ballerina authenticates the hop and authorizes the resource, owner, or exact
+   administrator role before reading or changing state.
+
+Frontend route checks improve user experience but never replace the API-layer
+checks.
+
+## Scan lifecycle
 
 ```text
-Public client
-  -> Ballerina POST /api/v1/scans
-  -> Go POST /internal/scans
-  -> PostgreSQL scan job with a separate internal Go job correlation
-  -> Ballerina GET /api/v1/scans/{scanId}
-  -> Go GET /internal/scans/{scanId}
+QUEUED ──dispatch──► RUNNING ──result transaction──► COMPLETED
+   │                     │
+   ├──policy change────► BLOCKED
+   └──dispatch error────► FAILED ◄──scanner failure──┘
 ```
 
-Ballerina owns the public contract and durable public scan ID, validates the acknowledgement and basic
-port boundaries, applies downstream connection/response timeouts, generates a
-request ID, and removes scanner diagnostics from public responses. The Go
-service remains responsible for DNS revalidation, allowlist enforcement,
-private/special-range blocking, scan limits, and TCP connections.
+1. Ballerina validates JSON size and shape, the explicit authorized-use
+   acknowledgement, port bounds, active-job limits, target policy, and all DNS
+   answers.
+2. It creates the public UUID and commits a `QUEUED` job plus requested audit
+   event before contacting Go. This makes `202 Accepted` durable.
+3. A dispatch lease prevents concurrent reconcilers from owning the same queued
+   row. The public UUID is also the idempotency key on the internal request.
+4. Go validates request correlation, target, ports, authorized pins, DNS set,
+   address safety, capacity, and timeouts before starting bounded TCP connects.
+5. Polling and periodic reconciliation recover work after transient Ballerina or
+   scanner outages. Strict response correlation rejects mismatched downstream
+   data.
+6. Ballerina commits terminal observations, job status, and audit attribution
+   transactionally. Owner-scoped detail and keyset history read only durable
+   state in deterministic order.
 
-The Ballerina-owned `scan_jobs.id` is the public identifier. The Go identifier
-is stored separately as `scanner_scan_id`; status polling uses that private
-correlation and persists lifecycle changes and terminal port observations.
-Completion takes a row lock and commits the complete observation batch with the
-terminal job update in one PostgreSQL transaction. Duplicate completion attempts
-become no-ops after the first commit. Owner-scoped detail/result queries and
-keyset scan-history queries use stable database ordering; exposing the history
-query as a public collection resource remains Day 14 work.
+## Data ownership
 
-Next.js is now in the development request path, and a local WSO2 Identity
-Server runtime is available from the Day 21 Compose foundation. Day 22 defines
-the confidential OIDC client, exact callbacks, scopes, and application-role
-contract. Day 23 wires WSO2 into the browser path with Authorization Code plus
-PKCE and an encrypted server-managed frontend session. Day 24 gates product
-routes on exact SecureScan application roles and repeats privileged checks in
-the admin server boundary. PostgreSQL is the durable scan system of record.
-Until identity and API management integration is complete, the Ballerina
-listener is a private development endpoint and `authorized: true` is only an
-explicit-use acknowledgement, not an authentication mechanism.
+- `scan_jobs.id` is the stable public scan identifier.
+- `scanner_scan_id` is private downstream correlation.
+- `scan_results` contains safe address/port/state observations, not raw scanner
+  diagnostic text.
+- `allowed_targets` contains versioned soft-disable policy and complete
+  port-range bounds.
+- `audit_logs` is append-only lifecycle and administration attribution
+  with an action-specific metadata allowlist.
+- Frontend sessions and OAuth tokens are not stored in the application database.
 
-## Initial Diagram
+The [schema design](../database/schema-design.md) defines tables, indexes,
+constraints, transactions, and migrations.
 
-```text
-                  ┌─────────────────────────┐
-                  │  WSO2 Identity Server   │
-                  │ Login, OAuth2, OIDC     │
-                  └────────────▲────────────┘
-                               │
-┌──────────┐       ┌───────────┴───────────┐
-│   User   │──────▶│   Next.js Frontend    │
-└──────────┘       └───────────┬───────────┘
-                               │
-                               ▼
-                  ┌─────────────────────────┐
-                  │    WSO2 API Manager     │
-                  │ Security + Throttling   │
-                  └────────────┬────────────┘
-                               │
-                               ▼
-                  ┌─────────────────────────┐
-                  │ Ballerina Integration   │
-                  │ Validation + Workflow   │
-                  └───────┬─────────┬───────┘
-                          │         │
-                          │         ▼
-                          │   ┌──────────────┐
-                          │   │ PostgreSQL   │
-                          │   │ Jobs + Logs  │
-                          │   └──────────────┘
-                          │
-                          ▼
-                  ┌─────────────────────────┐
-                  │    Go Scanner Engine    │
-                  │ Controlled TCP Scans    │
-                  └────────────┬────────────┘
-                               │
-                               ▼
-                     Authorized Target
-```
+## Capacity and failure behavior
 
-## Status
+- API Manager applies separate user and administrator subscription policies.
+- Next.js and Ballerina cap request bodies; Ballerina and Go cap ports at 1,000.
+- Ballerina limits one active scan per owner; Go additionally bounds global
+  active jobs, worker concurrency, retained jobs, and TCP duration.
+- Missing identity, roles, policy, configuration, or trusted-hop credentials
+  fails closed.
+- Dependency errors map to stable public envelopes with request IDs; internal
+  diagnostics remain in structured service logs.
+- Health-aware Compose dependencies order cold start. PostgreSQL migrations run
+  on an empty volume and the migration ledger records the initialized state.
+- The recovery harness uses isolated volumes and networks to verify cold start,
+  two real flows, restart persistence, and four dependency outages.
 
-The Ballerina-to-Go integration, PostgreSQL persistence, scan frontend, and
-local WSO2 Identity Server runtime checkpoints are implemented. Authentication
-flows, authorization enforcement, and API management remain future integration
-phases.
+## Deployment boundary
+
+The repository contains pinned application builds, the six-service Compose
+topology, environment validation, secret checks, API Manager artifacts, tests,
+and recovery automation. WSO2 applications, roles, API import, subscriptions,
+certificates, and authorized targets are stateful operator configuration; they
+are not fabricated by source tests.
+
+Before deployment, run the [automated test gate](../testing/day-38-automated-tests.md),
+complete the [security checkpoint](../security/day-33-security-checkpoint.md),
+and capture the [Compose recovery evidence](../deployment/day-37-compose-recovery.md)
+on a Docker-capable host. The last gate remains pending in the current
+restricted workspace.

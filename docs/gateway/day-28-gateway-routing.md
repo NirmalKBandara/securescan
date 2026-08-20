@@ -42,7 +42,8 @@ In Publisher, re-import the Day 28 API project and deploy a new revision. Verify
 - credentials are disabled for Gateway CORS because the supported browser path
   is the same-origin Next.js proxy;
 - `securescan-identity-in` remains the inbound mediation policy;
-- the production endpoint remains `http://host.docker.internal:9090`;
+- the production endpoint remains the private Compose service
+  `http://ballerina-api:9090`;
 - the published revision is deployed to the `Default` Gateway.
 
 For a non-local frontend, replace the local CORS origin in
@@ -79,8 +80,12 @@ real client secret and session secret. The routing values are:
 NEXT_PUBLIC_API_BASE_URL=/backend
 SECURESCAN_API_MODE=gateway
 API_MANAGER_GATEWAY_URL=https://localhost:8243/securescan/v1
-OIDC_SCOPES=openid profile email securescan:scan
+OIDC_SCOPES=openid profile email securescan:scan securescan:admin
 ```
+
+Day 32 adds the administrator scope to this shared frontend configuration.
+API Manager binds it only to `securescan-admin`; requesting the scope does not
+make an ordinary user an administrator.
 
 Trust the local Identity Server and Gateway development certificates using
 `NODE_EXTRA_CA_CERTS`. Never set `NODE_TLS_REJECT_UNAUTHORIZED=0`. Direct mode

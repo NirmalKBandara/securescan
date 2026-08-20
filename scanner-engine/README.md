@@ -216,4 +216,7 @@ go test ./...
 * Open and closed are the only displayed states
 * Scan jobs are kept in memory, bounded by active and terminal-job limits, and
   are lost when the service restarts
-* Authentication and authorization will be handled by later platform layers
+* Go intentionally has no public-user authentication. Compose does not publish
+  its listener; API Manager and Ballerina enforce public identity, roles,
+  ownership, target policy, and throttling, while Go still enforces the
+  internal request, DNS-set, address, port, concurrency, and timeout contract.

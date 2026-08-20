@@ -11,7 +11,8 @@ The page and API are independently protected:
 
 - Next.js route authorization requires an encrypted session containing the
   exact `securescan-admin` application role before `/admin` is rendered.
-- The backend proxy forwards identity only from that server-side session.
+- The backend proxy unseals identity and the access token only from the
+  encrypted HttpOnly session cookie; client-side JavaScript cannot read them.
 - API Manager binds every `/api/v1/admin/*` operation to the
   `securescan:admin` scope.
 - Ballerina authenticates the trusted Gateway headers and calls `requireAdmin`
@@ -84,7 +85,10 @@ The responsive dashboard provides:
   and success notices, and alert semantics for failures.
 
 Requests go through the existing same-origin `/backend` route. Access tokens and
-the Gateway shared secret remain server-side.
+the Gateway shared secret are available only to server-side route code after
+the session cookie is unsealed. The frontend OIDC client requests both
+`securescan:scan` and `securescan:admin`; API Manager's exact role binding
+prevents ordinary identities from using administrator operations.
 
 ## Verification
 

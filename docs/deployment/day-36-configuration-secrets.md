@@ -14,9 +14,11 @@ openssl rand -base64 36  # Gateway-to-Ballerina shared secret
 openssl rand -base64 36  # Next.js session secret
 ```
 
-Register the WSO2 client before replacing `OIDC_CLIENT_ID` and
-`OIDC_CLIENT_SECRET`. Do not reuse any of the generated values. Validate the
-finished file without sourcing it into the shell:
+Replace `POSTGRES_PASSWORD`, `SECURESCAN_GATEWAY_SHARED_SECRET`, and
+`AUTH_SESSION_SECRET` immediately. Leave the OIDC placeholders only during the
+partial WSO2 bootstrap below; the frontend must not be started in that state.
+Do not reuse any generated values. Validate the finished file only after the
+real OIDC client values and CA bundle exist:
 
 ```sh
 deployment/validate-config.sh deployment/.env
@@ -31,16 +33,25 @@ reject missing or placeholder application secrets during startup.
 
 ## Initial WSO2 configuration
 
-1. Start PostgreSQL, the scanner, Ballerina, Identity Server, and API Manager.
-   The complete Day 37 command is used after a trusted local TLS configuration
-   is in place.
+1. With the three generated secrets filled, start only the dependencies that do
+   not consume the OIDC client placeholders:
+
+   ```sh
+   docker compose --env-file deployment/.env -f deployment/compose.yaml \
+     up -d --build --wait postgres scanner-engine ballerina-api \
+     identity-server api-manager
+   ```
+
+   Do not run the frontend or claim the environment passes preflight yet.
 2. Open `https://localhost:9443/console`, replace the image's bootstrap
    password, create the `securescan-user` and `securescan-admin` roles, and
    create the test identities described in the Day 21–25 runbooks.
 3. Register a Traditional Web Application with callback
    `http://localhost:3000/auth/callback`, logout URL
    `http://localhost:3000/login`, Authorization Code plus PKCE, and the exact
-   scopes in `OIDC_SCOPES`. Copy its client values into `deployment/.env`.
+   `securescan:scan` and `securescan:admin` scopes in `OIDC_SCOPES`. Bind the
+   latter only to `securescan-admin`. Copy its client values into
+   `deployment/.env`.
 4. Import and publish `deployment/apim/securescan-api`, create the frontend
    application/subscription, install the Day 29 throttling policies, and use
    the same `SECURESCAN_GATEWAY_SHARED_SECRET` in the Gateway mediation policy.
@@ -48,7 +59,20 @@ reject missing or placeholder application secrets during startup.
    `localhost`, while service-to-service TLS names match their Compose service
    names. Put the issuing CA bundle at the host path configured by
    `WSO2_CA_BUNDLE_HOST_PATH`; Compose mounts it read-only and sets
-   `NODE_EXTRA_CA_CERTS` inside the frontend. Never disable TLS verification.
+   `NODE_EXTRA_CA_CERTS` inside the frontend. The repository does not generate
+   or mount the required WSO2 keystores; the exact manual prerequisite and
+   current limitation are recorded in the
+   [certificate guide](../../deployment/certs/README.md). Never disable TLS
+   verification or accept a hostname mismatch.
+6. Replace every remaining placeholder, validate the environment, and only then
+   start the full stack:
+
+   ```sh
+   deployment/validate-config.sh deployment/.env
+   deployment/verify-secrets.sh
+   docker compose --env-file deployment/.env -f deployment/compose.yaml \
+     up -d --build --wait
+   ```
 
 WSO2's embedded databases and bundled certificate are development-only. Any
 generated databases, keystores, PEM files, private keys, logs, and local
@@ -80,10 +104,11 @@ The following repository checks pass on this workstation:
 - `.env.example` is rejected because placeholders are intentionally unusable.
 - A fully populated temporary environment passes preflight validation.
 - tracked files and Git history pass the built-in credential signatures;
-- all 86 frontend tests, ESLint, TypeScript, the production frontend build,
-  all Go tests, and the Ballerina tests pass;
+- all 86 frontend tests, ESLint, TypeScript, the production frontend build, and
+  all Go tests pass;
+- Ballerina compiles with Java 21; its socket-opening test suite cannot run in
+  the current restricted workspace and is delegated to CI;
 - shell syntax and `git diff --check` pass.
 
-Ballerina was verified with the installed Java 21 runtime. Live WSO2 and
-Compose evidence remains intentionally deferred to the Docker-capable Day 37
-gate.
+Live WSO2 and Compose evidence remains intentionally deferred to the
+Docker-capable Day 37 gate.

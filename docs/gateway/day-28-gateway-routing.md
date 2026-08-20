@@ -80,12 +80,8 @@ real client secret and session secret. The routing values are:
 NEXT_PUBLIC_API_BASE_URL=/backend
 SECURESCAN_API_MODE=gateway
 API_MANAGER_GATEWAY_URL=https://localhost:8243/securescan/v1
-OIDC_SCOPES=openid profile email securescan:scan securescan:admin
+OIDC_SCOPES=openid profile email securescan:scan
 ```
-
-Day 32 adds the administrator scope to this shared frontend configuration.
-API Manager binds it only to `securescan-admin`; requesting the scope does not
-make an ordinary user an administrator.
 
 Trust the local Identity Server and Gateway development certificates using
 `NODE_EXTRA_CA_CERTS`. Never set `NODE_TLS_REJECT_UNAUTHORIZED=0`. Direct mode

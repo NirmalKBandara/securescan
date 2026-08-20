@@ -22,17 +22,21 @@ properties, asynchronous lifecycle, final roadmap state, and the remaining live
 deployment gate. The architecture and API documents now describe the deployed
 trust chain rather than future WSO2 integration.
 
-The review also reconciled the shared frontend's `securescan:admin` scope,
-current V001–V006 database design, encrypted-cookie token boundary, and the
-two-stage WSO2 bootstrap. Certificate generation and WSO2 keystore/public-URL
-wiring remain explicit operator-owned prerequisites; the repository provides
-the frontend CA mount but does not claim to automate the WSO2 side.
+The review also reconciled the current V001–V006 database design,
+encrypted-cookie token boundary, and two-stage WSO2 bootstrap. It identified
+that the ordinary frontend client cannot safely receive the administrator API
+scope; a separate privileged client or incremental grant flow remains a visible
+design gate. Certificate generation and WSO2 keystore/public-URL wiring remain
+explicit operator-owned prerequisites; the repository provides the frontend CA
+mount but does not claim to automate the WSO2 side.
 
 ## Documentation integrity gate
 
 `scripts/verify-docs.sh` scans workspace Markdown links that point to
 local files or directories. It fails when a target is missing or resolves
-outside the repository. The root repository check runs it automatically:
+outside the repository. It also fails when a Markdown document under `docs/`
+is not reachable from the documentation index. The root repository check runs
+it automatically:
 
 ```sh
 ./scripts/verify.sh repository

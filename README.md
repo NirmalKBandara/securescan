@@ -21,6 +21,12 @@ PostgreSQL, real-scan, restart, and dependency-recovery exercise in the
 available in the current restricted workspace, so that live evidence remains
 pending.
 
+The administrator UI and protected API resources are implemented, but the
+ordinary frontend OAuth client requests only `securescan:scan`. A separate
+privileged client or safe incremental grant for `securescan:admin` must be
+implemented and verified before claiming the browser-admin Gateway path is
+deployable.
+
 ## Architecture
 
 ```text
@@ -182,6 +188,7 @@ Public and internal schemas are documented separately in the
 - [x] Configuration, secret, integration, and recovery procedures
 - [x] Cross-stack automated tests and continuous integration
 - [x] Complete maintained project documentation
+- [ ] Complete the privileged browser-admin OAuth scope flow
 - [ ] Capture the live Day 37 deployment evidence on a Docker-capable host
 
 ## License

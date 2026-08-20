@@ -49,9 +49,10 @@ reject missing or placeholder application secrets during startup.
 3. Register a Traditional Web Application with callback
    `http://localhost:3000/auth/callback`, logout URL
    `http://localhost:3000/login`, Authorization Code plus PKCE, and the exact
-   `securescan:scan` and `securescan:admin` scopes in `OIDC_SCOPES`. Bind the
-   latter only to `securescan-admin`. Copy its client values into
-   `deployment/.env`.
+   ordinary `securescan:scan` scope in `OIDC_SCOPES`. Copy its client values
+   into `deployment/.env`. Do not add `securescan:admin` to this ordinary
+   application; the separate browser-admin client/grant flow is not yet
+   implemented.
 4. Import and publish `deployment/apim/securescan-api`, create the frontend
    application/subscription, install the Day 29 throttling policies, and use
    the same `SECURESCAN_GATEWAY_SHARED_SECRET` in the Gateway mediation policy.

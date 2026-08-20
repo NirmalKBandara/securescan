@@ -42,7 +42,8 @@ In Publisher, re-import the Day 28 API project and deploy a new revision. Verify
 - credentials are disabled for Gateway CORS because the supported browser path
   is the same-origin Next.js proxy;
 - `securescan-identity-in` remains the inbound mediation policy;
-- the production endpoint remains `http://host.docker.internal:9090`;
+- the production endpoint remains the private Compose service
+  `http://ballerina-api:9090`;
 - the published revision is deployed to the `Default` Gateway.
 
 For a non-local frontend, replace the local CORS origin in

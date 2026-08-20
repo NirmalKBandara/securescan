@@ -5,10 +5,13 @@ validates client requests, persists the public scan lifecycle in PostgreSQL,
 calls the internal Go scanner, and returns stable public response envelopes
 without exposing internal service details.
 
-This is currently a development/pre-auth API. The request's `authorized` field
-is an explicit acknowledgement, not an authentication or authorization
-control. Keep the listener private until the planned identity and
-API-management layers are integrated.
+In the Compose architecture, API Manager is the public token, scope,
+subscription, CORS, and throttling boundary. Its trusted mediation forwards the
+authenticated subject and roles to the private Ballerina listener with a shared
+backend secret. Ballerina authenticates that hop and independently enforces
+ownership and exact administrator roles. The request's `authorized` field is a
+required-use acknowledgement; it does not replace authentication, target
+policy, or network-safety authorization.
 
 Every public scan response includes an `X-Request-ID` header. Error response
 bodies contain the same value in `error.requestId`, allowing an operator to
@@ -115,8 +118,10 @@ results when a hostname resolves to multiple IP addresses. Internal scanner and
 per-port diagnostic strings are deliberately omitted from the public response.
 An accepted, running, or failed job may not contain a `result`. Persisted detail
 and result reads are owner-scoped, and result rows are always returned in
-`address, port` order. Until WSO2 integration, that owner is the configured
-development subject.
+`address, port` order. The owner is the authenticated subject forwarded over
+the trusted API Manager hop. An explicit isolated direct-development mode may
+use its configured development subject, but that mode is not the deployed
+Gateway path.
 
 ## GET /api/v1/scans
 
@@ -130,8 +135,9 @@ GET /api/v1/scans?pageSize=20
 GET /api/v1/scans?pageSize=20&cursorCreatedAt=2026-08-05T10:00:00Z&cursorId=945686d6-c53f-4717-9d98-51f913fc8904
 ```
 
-Until WSO2 integration, ownership is scoped with the configured development
-subject.
+Ownership is scoped to the authenticated subject. Administrators use separate
+resources and must carry the exact administrator role; ordinary collection
+queries never become cross-user reads.
 
 ## Administrator resources
 

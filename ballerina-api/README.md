@@ -5,10 +5,12 @@ SecureScan. It validates public requests, orchestrates scanner jobs, and
 communicates with the Go scanner engine, and persists scan lifecycle and results
 in PostgreSQL.
 
-The service is currently a development/pre-auth API. The `authorized` request
-field is an explicit user acknowledgement, not an authentication or
-authorization control. Keep the listener private until WSO2 identity and API
-management are integrated.
+In the Compose architecture, WSO2 API Manager validates public access tokens,
+scopes, subscriptions, and quotas, then sends trusted identity over the private
+backend hop. Ballerina authenticates that hop with the configured Gateway
+secret and independently enforces ownership and exact administrator roles. The
+`authorized` request field remains a required-use acknowledgement; it is not an
+authentication or target-authorization control.
 
 ## Current Status
 

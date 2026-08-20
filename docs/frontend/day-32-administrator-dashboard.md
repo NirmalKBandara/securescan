@@ -11,7 +11,8 @@ The page and API are independently protected:
 
 - Next.js route authorization requires an encrypted session containing the
   exact `securescan-admin` application role before `/admin` is rendered.
-- The backend proxy forwards identity only from that server-side session.
+- The backend proxy unseals identity and the access token only from the
+  encrypted HttpOnly session cookie; client-side JavaScript cannot read them.
 - API Manager binds every `/api/v1/admin/*` operation to the
   `securescan:admin` scope.
 - Ballerina authenticates the trusted Gateway headers and calls `requireAdmin`
@@ -84,7 +85,12 @@ The responsive dashboard provides:
   and success notices, and alert semantics for failures.
 
 Requests go through the existing same-origin `/backend` route. Access tokens and
-the Gateway shared secret remain server-side.
+the Gateway shared secret are available only to server-side route code after
+the session cookie is unsealed. The default ordinary frontend client requests
+only `securescan:scan`, while API Manager correctly requires
+`securescan:admin` for these resources. A separate privileged client or safe
+incremental authorization flow has not been implemented, so the default live
+browser session cannot yet prove the dashboard-to-Gateway admin path.
 
 ## Verification
 
@@ -115,8 +121,9 @@ and all collection bounds are enforced before database access.
 
 ## Acceptance result
 
-The repository checkpoint satisfies the UI and API acceptance requirements: an
-administrator can review all jobs, filter blocked and failed work, inspect audit
-events and counts, and manage allowed targets; a normal user is rejected by the
-route and API authorization layers. Live role/scope evidence still requires the
-local WSO2 runtime.
+The repository checkpoint satisfies the UI, Ballerina, and API contract
+requirements: administrator behavior is implemented and a normal user is
+rejected by the route and API authorization layers. The default frontend token
+does not carry `securescan:admin`; a privileged browser grant/client flow and
+its live WSO2 evidence remain required before claiming the end-to-end admin
+dashboard path is deployable.

@@ -57,7 +57,8 @@ apictl import api -f deployment/apim/securescan-api \
 In Publisher, open `SecureScanAPI : v1` and verify:
 
 - context is `/securescan/v1`;
-- production endpoint is `http://host.docker.internal:9090`;
+- production endpoint is the private Compose service
+  `http://ballerina-api:9090`;
 - HTTPS is the only transport;
 - the `securescan-identity-in` request policy is attached;
 - `Unlimited` is available for the development subscription;

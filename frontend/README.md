@@ -28,6 +28,9 @@ only in the ignored `.env.local` file.
 Set `OIDC_ROLE_CLAIM` to the WSO2 claim that carries exact
 `securescan-user` / `securescan-admin` values; it defaults to `groups`.
 `OIDC_SCOPES` must include both `openid` and the API's `securescan:scan` scope.
+The default client deliberately does not request `securescan:admin`; the
+browser-admin OAuth client/grant flow remains an unresolved deployment design
+gate even though the admin UI and protected API resources are implemented.
 
 Build the standalone, non-root runtime image from the repository root:
 

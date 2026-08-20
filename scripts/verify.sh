@@ -41,6 +41,7 @@ run_repository_checks() {
     bash -n "${script}"
   done < <(find "${repository_root}" -path '*/node_modules' -prune -o \
     -path '*/.git' -prune -o -type f -name '*.sh' -print0)
+  "${repository_root}/scripts/verify-docs.sh"
   "${repository_root}/deployment/verify-secrets.sh"
   git -C "${repository_root}" diff --check
 }

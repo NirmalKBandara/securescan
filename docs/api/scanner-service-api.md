@@ -187,6 +187,9 @@ Unpinned requests and `ALLOW_PRIVATE_TARGETS=true` require
 `127.0.0.1:8081`. That mode is for isolated testing and is not a production
 compatibility path.
 
-The service must remain behind the Ballerina and API-management layers in
-the final architecture. Those layers will add authentication, authorization,
-rate limiting and public API controls.
+The service remains behind Ballerina and API Manager in the implemented Compose
+architecture. API Manager applies public authentication, scopes, subscriptions,
+and throttling; Ballerina applies trusted-hop authentication, ownership, roles,
+target policy, lifecycle, and audit controls. These upstream layers do not
+replace the scanner's own address, DNS-set, port, concurrency, and timeout
+checks.

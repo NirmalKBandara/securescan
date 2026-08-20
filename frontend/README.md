@@ -27,7 +27,9 @@ OIDC requires the server-only `APP_BASE_URL`,
 only in the ignored `.env.local` file.
 Set `OIDC_ROLE_CLAIM` to the WSO2 claim that carries exact
 `securescan-user` / `securescan-admin` values; it defaults to `groups`.
-`OIDC_SCOPES` must include both `openid` and the API's `securescan:scan` scope.
+`OIDC_SCOPES` must include `openid`, `securescan:scan`, and
+`securescan:admin` for the shared user/administrator frontend. API Manager binds
+the administrator scope only to the exact administrator role.
 
 Build the standalone, non-root runtime image from the repository root:
 

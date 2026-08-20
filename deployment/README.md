@@ -8,12 +8,14 @@ PostgreSQL, Ballerina, and Go are private to segmented service networks.
 
 ## Start the services
 
-From the repository root:
+First-time setup is a two-stage bootstrap because real OIDC client values do not
+exist until Identity Server is running. Follow the
+[Day 36 bootstrap](../docs/deployment/day-36-configuration-secrets.md) rather
+than attempting to validate the placeholder example or start the frontend.
+
+For an already bootstrapped environment, from the repository root:
 
 ```sh
-cp deployment/.env.example deployment/.env
-# Create deployment/certs/wso2-local-ca-bundle.pem from the CA that signs the
-# WSO2 certificates; their SANs must match the Compose service names.
 deployment/validate-config.sh deployment/.env
 deployment/verify-secrets.sh
 docker compose --env-file deployment/.env -f deployment/compose.yaml up -d --build --wait
@@ -37,7 +39,8 @@ docker compose -f deployment/compose.yaml logs -f api-manager
 
 Once healthy, open `https://localhost:9443/console`. The official development
 image uses a self-signed certificate, so browsers and command-line clients will
-report an untrusted certificate until a local trust setup is provided.
+report an untrusted certificate until the manual
+[WSO2 certificate prerequisite](certs/README.md) is complete.
 
 For a fresh upstream image, the development bootstrap sign-in is `admin` /
 `admin`. It is for local setup only. Change the password immediately before

@@ -1,8 +1,10 @@
 # SecureScan PostgreSQL Schema Design
 
-Status: Day 13 implementation; the Day 11 schema/index foundation is executable,
-and Ballerina now persists scan lifecycle and results transactionally with
-owner-scoped, deterministic reads.
+Status: maintained through Day 39. Migrations V001–V006 implement the core
+schema, indexes, dispatch leases, hardened lifecycle audit events, complete
+allowed-target administration, and pre-dispatch authorization constraints.
+Ballerina persists lifecycle and results transactionally with owner-scoped,
+deterministic reads.
 
 ## Design goals
 
@@ -528,8 +530,11 @@ FOR UPDATE SKIP LOCKED
 LIMIT $1;
 ```
 
-This selection and a lease/dispatch strategy remains future worker work; no
-network call should hold a database lock.
+The implemented dispatcher uses an atomic conditional `UPDATE` to acquire the
+expiring V003 lease for a specific queued job. It performs the network call
+without holding a database transaction open, then changes state only when the
+same lease token is still present. Expired leases allow reconciliation to
+recover abandoned dispatches.
 
 Administrators can list/filter all scans using `status`, `owner_subject`, and a
 time range, ordered by `(created_at DESC, id DESC)`. Exact job lookup uses the
@@ -630,18 +635,19 @@ the schema constraints and unique indexes reject malformed or duplicate rules.
   addresses, authorization data, tokens, cookies, secrets, passwords, raw
   diagnostics, headers, and request/response bodies are never inserted.
 - Public reads always include `owner_subject = $authenticated_subject`.
-  The browser never connects to PostgreSQL. Ballerina uses a least-privilege
-  runtime role; a separate migration owner creates objects, and a separate
-  admin/reporting role receives audited read access. The Go scanner receives
-  no database credential unless architecture explicitly moves persistence into
-  Go later.
+  The browser never connects to PostgreSQL. The local Compose topology currently
+  uses `POSTGRES_USER` for both initialization and the Ballerina runtime; it does
+  not claim production least privilege. A deployed environment should separate
+  migration ownership, Ballerina runtime, audit writing, and reporting grants.
+  The Go scanner receives no database credential.
 - If row-level security is enabled later, policies should compare
   `owner_subject` with a transaction-local, server-set subject. With a pooler,
   use `SET LOCAL` inside a transaction and reset by transaction end; never trust
   a client-supplied session setting. Application ownership predicates remain
   mandatory defense in depth.
-- Audit rows are append-only to runtime roles: grant `INSERT` and required
-  `SELECT`, but no `UPDATE` or `DELETE`. PostgreSQL/backups must use encrypted
+- A production runtime role should receive append-only audit permissions:
+  `INSERT` and required `SELECT`, but no `UPDATE` or `DELETE`. The local Compose
+  user is not evidence of that separation. PostgreSQL/backups must use encrypted
   storage, TLS, restricted retention, and redacted database logs.
 
 ## Versioned migrations
@@ -668,22 +674,27 @@ transaction; their downs should use `DROP INDEX CONCURRENTLY`.
    immutable, constrains lifecycle actor/outcome and metadata shapes, and adds
    the unique per-job lifecycle-event index. Its down migration restores the
    original nullable audit relationship and removes only these additions.
-5. `V005__database_roles_and_grants` (future deployment work): create/attach least-privilege grants for
-   migration owner, Ballerina runtime, audit writer, and admin reader. Keep role
-   secrets in the deployment secret manager, never SQL files. Down revokes
-   grants; shared production roles are not dropped automatically.
-6. Development targets are kept in `database/seeds/development.sql`, separate
-   from production migrations. They use deterministic IDs and no credentials;
-   production allowlist data requires a separately approved data migration.
-7. `V006__optional_row_level_security`: after pooled-connection integration
-   tests prove transaction-local subject propagation, enable RLS and add
-   user/admin policies. Down removes policies and disables RLS; deploy the
-   application ownership predicates before enabling this migration.
-8. Later additive migrations use expand/backfill/validate/contract: add nullable
-   columns or `NOT VALID` constraints, backfill in bounded batches, validate,
-   switch writers/readers, and only then make columns required or remove old
-   data. New status values are added by replacing the named check constraint
-   after all services understand the value.
+5. `V005__complete_allowed_target_administration` (implemented): distinguishes
+   exact IP rules from CIDRs, rebuilds active-rule uniqueness and lookup
+   indexes, retains referenced rules, constrains administrator event shape and
+   metadata, and makes create/disable audit events unique.
+6. `V006__enforce_target_authorization` (implemented): tightens the blocked-job
+   invariant so a blocked job cannot have reached the scanner. Its down
+   migration restores the earlier relationship between blocked jobs and their
+   matched allowlist rule.
+
+Development targets are kept in `database/seeds/development.sql`, separate
+from production migrations. They use deterministic IDs and no credentials;
+production allowlist data requires separately approved administration. Database
+roles/grants and optional row-level security remain deployment hardening ideas,
+not fictitious migration versions. Application ownership predicates stay
+mandatory if RLS is later added.
+
+Later additive migrations use expand/backfill/validate/contract: add nullable
+columns or `NOT VALID` constraints, backfill in bounded batches, validate,
+switch writers/readers, and only then make columns required or remove old data.
+New status values are added by replacing the named check constraint after all
+services understand the value.
 
 Before rollout, run migration up/down/up on an empty database and up against a
 copy of the previous version. Verify constraints with invalid fixtures, inspect

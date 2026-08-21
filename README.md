@@ -10,7 +10,7 @@ target policy, inspect audit events, and review usage across users.
 
 ## Project status
 
-The Day 41 clean-room source checkpoint is complete. The application, API contracts,
+The Day 42 source audit is complete. The application, API contracts,
 database migrations, local six-service topology, security controls, automated
 tests, and maintained documentation are present in the repository.
 
@@ -109,6 +109,17 @@ The [Day 41 evidence record](docs/project/day-41-clean-room-evidence.md) records
 the observed clean-room result and keeps the pending WSO2/Docker screenshots
 and demonstration separate from source verification.
 
+The final source and runtime-evidence gates are combined by:
+
+```sh
+./scripts/release-audit.sh all
+```
+
+The source half currently passes. The runtime-evidence half intentionally
+blocks release tagging until the [Day 42 audit](docs/project/day-42-final-audit-release.md)
+records the genuine WSO2/Docker captures, video, privileged admin flow, and
+external contribution.
+
 The repository gate checks shell syntax, local Markdown links, secret patterns,
 and whitespace. PostgreSQL verification runs in CI against a disposable
 PostgreSQL 16 service; the equivalent local commands are documented in the
@@ -204,6 +215,7 @@ Public and internal schemas are documented separately in the
 - [x] Reconcile OpenAPI and architecture/login/deployment diagrams
 - [x] Pass all source gates from a clean tracked-files-only checkout
 - [ ] Capture redacted WSO2, Gateway, container, persistence, admin, and video evidence
+- [ ] Complete the Day 42 runtime evidence audit and tag `v1.0.0`
 - [ ] Complete the privileged browser-admin OAuth scope flow
 - [ ] Capture the live Day 37 deployment evidence on a Docker-capable host
 

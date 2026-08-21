@@ -24,7 +24,6 @@ export async function SiteHeader() {
     <header className="site-header">
       <div className="nav-wrap">
         <Link className="brand" href="/dashboard" aria-label="SecureScan dashboard">
-          <span className="brand-mark" aria-hidden="true">S</span>
           <span>SecureScan</span>
         </Link>
         <nav aria-label="Main navigation">

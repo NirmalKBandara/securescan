@@ -15,7 +15,6 @@ export default async function LoginPage({ searchParams }: {
   const { error, returnTo } = await searchParams;
   const loginUrl = `/auth/login?${new URLSearchParams({ returnTo: safeReturnTo(returnTo) })}`;
   return <section className="auth-card" aria-labelledby="login-title">
-    <div className="brand-mark large" aria-hidden="true">S</div>
     <p className="eyebrow">Protected workspace</p>
     <h1 id="login-title">Welcome to SecureScan</h1>
     <p>Sign in through the identity provider to manage authorized network scans.</p>

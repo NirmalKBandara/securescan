@@ -149,6 +149,9 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?OIDC_CLIENT_SECRET is required after registering the WSO2 application}
       OIDC_ROLE_CLAIM: ${OIDC_ROLE_CLAIM:-groups}
       OIDC_SCOPES: ${OIDC_SCOPES:-openid profile email securescan:scan}
+      OIDC_ADMIN_CLIENT_ID: ${OIDC_ADMIN_CLIENT_ID:?OIDC_ADMIN_CLIENT_ID is required after registering the privileged WSO2 application}
+      OIDC_ADMIN_CLIENT_SECRET: ${OIDC_ADMIN_CLIENT_SECRET:?OIDC_ADMIN_CLIENT_SECRET is required after registering the privileged WSO2 application}
+      OIDC_ADMIN_SCOPES: ${OIDC_ADMIN_SCOPES:-openid profile email securescan:scan securescan:admin}
       AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:?AUTH_SESSION_SECRET is required; generate at least 32 random characters}
       SECURESCAN_API_MODE: gateway
       API_MANAGER_GATEWAY_URL: https://api-manager:8243/securescan/v1

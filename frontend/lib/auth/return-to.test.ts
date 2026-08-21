@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { safeReturnTo } from "./return-to";
+import { isAdminReturnTo, safeReturnTo } from "./return-to";
 
 describe("safeReturnTo", () => {
   it("preserves an internal path, query, and fragment", () => {
@@ -16,4 +16,16 @@ describe("safeReturnTo", () => {
   ])("falls back for an unsafe destination", (value) => {
     expect(safeReturnTo(value)).toBe("/dashboard");
   });
+});
+
+describe("isAdminReturnTo", () => {
+  it.each(["/admin", "/admin/", "/admin/audit?status=failed#events"])(
+    "selects the privileged client for %s",
+    (returnTo) => expect(isAdminReturnTo(returnTo)).toBe(true),
+  );
+
+  it.each(["/dashboard", "/administrator", "/administer", "//attacker/admin"])(
+    "does not select the privileged client for %s",
+    (returnTo) => expect(isAdminReturnTo(returnTo)).toBe(false),
+  );
 });

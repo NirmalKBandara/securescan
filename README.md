@@ -21,11 +21,10 @@ PostgreSQL, real-scan, restart, and dependency-recovery exercise in the
 available in the current restricted workspace, so that live evidence remains
 pending.
 
-The administrator UI and protected API resources are implemented, but the
-ordinary frontend OAuth client requests only `securescan:scan`. A separate
-privileged client or safe incremental grant for `securescan:admin` must be
-implemented and verified before claiming the browser-admin Gateway path is
-deployable.
+The administrator UI and protected API resources use a separate privileged
+OAuth client so the ordinary client never requests `securescan:admin`. Live
+WSO2 client registration and browser-to-Gateway verification remain part of
+the pending stateful deployment gate.
 
 ## Architecture
 
@@ -216,7 +215,7 @@ Public and internal schemas are documented separately in the
 - [x] Pass all source gates from a clean tracked-files-only checkout
 - [ ] Capture redacted WSO2, Gateway, container, persistence, admin, and video evidence
 - [ ] Complete the Day 42 runtime evidence audit and tag `v1.0.0`
-- [ ] Complete the privileged browser-admin OAuth scope flow
+- [x] Implement the separate privileged browser-admin OAuth scope flow
 - [ ] Capture the live Day 37 deployment evidence on a Docker-capable host
 
 ## License

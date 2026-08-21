@@ -1,23 +1,25 @@
 import "server-only";
 
 import * as client from "openid-client";
-import { loadOidcConfig } from "./config";
+import { loadOidcConfig, type OidcClientKind } from "./config";
 
-let cachedConfiguration: Promise<client.Configuration> | undefined;
+const cachedConfigurations = new Map<OidcClientKind, Promise<client.Configuration>>();
 
-export function getOidcConfiguration() {
-  if (!cachedConfiguration) {
-    const config = loadOidcConfig();
-    cachedConfiguration = client.discovery(
+export function getOidcConfiguration(clientKind: OidcClientKind = "user") {
+  let configuration = cachedConfigurations.get(clientKind);
+  if (!configuration) {
+    const config = loadOidcConfig(process.env, clientKind);
+    configuration = client.discovery(
       config.issuer,
       config.clientId,
       config.clientSecret,
     ).catch((error: unknown) => {
-      cachedConfiguration = undefined;
+      cachedConfigurations.delete(clientKind);
       throw error;
     });
+    cachedConfigurations.set(clientKind, configuration);
   }
-  return cachedConfiguration;
+  return configuration;
 }
 
 export { client };

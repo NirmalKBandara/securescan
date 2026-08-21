@@ -9,6 +9,7 @@ describe("auth cookie values", () => {
   it("accepts live sessions and rejects expired sessions", () => {
     const session: AuthSession = {
       accessToken: "access-token",
+      clientKind: "user",
       expiresAt: now + 60_000,
       idToken: "id-token",
       issuer: "https://localhost:9443/oauth2/token",
@@ -22,6 +23,7 @@ describe("auth cookie values", () => {
 
   it("rejects expired OIDC transactions", () => {
     const transaction: AuthTransaction = {
+      clientKind: "user",
       codeVerifier: "verifier",
       expiresAt: now,
       nonce: "nonce",
@@ -29,5 +31,20 @@ describe("auth cookie values", () => {
       state: "state",
     };
     expect(readTransaction(seal(transaction, secret), secret, now)).toBeNull();
+  });
+
+  it("rejects transactions without a recognized client binding", () => {
+    const transaction = {
+      clientKind: "unexpected",
+      codeVerifier: "verifier",
+      expiresAt: now + 60_000,
+      nonce: "nonce",
+      returnTo: "/admin",
+      state: "state",
+    };
+    expect(readTransaction(seal(transaction, secret), secret, now)).toBeNull();
+    const unbound: Partial<typeof transaction> = { ...transaction };
+    delete unbound.clientKind;
+    expect(readTransaction(seal(unbound, secret), secret, now)).toBeNull();
   });
 });

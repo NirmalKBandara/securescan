@@ -15,3 +15,14 @@ export function safeReturnTo(value: string | null | undefined) {
     return DEFAULT_DESTINATION;
   }
 }
+
+export function isAdminReturnTo(returnTo: string) {
+  try {
+    const parsed = new URL(returnTo, "https://securescan.invalid");
+    if (parsed.origin !== "https://securescan.invalid") return false;
+    const pathname = parsed.pathname;
+    return pathname === "/admin" || pathname.startsWith("/admin/");
+  } catch {
+    return false;
+  }
+}

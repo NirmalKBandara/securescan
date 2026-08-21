@@ -23,6 +23,14 @@ password, or client-credentials grants to this browser-facing application.
 Copy the generated client ID and client secret to `frontend/.env.local`; never
 put them in a `NEXT_PUBLIC_*` variable or commit that file.
 
+Create a second **Traditional Web Application** named
+`SecureScan Administration Development` with the same exact redirect, logout,
+origin, Authorization Code, PKCE, and client-authentication settings. Allow
+`openid profile email securescan:scan securescan:admin`, restrict this client to
+administrator identities, and store its credentials only in
+`OIDC_ADMIN_CLIENT_ID` and `OIDC_ADMIN_CLIENT_SECRET`. Keeping the applications
+separate prevents an ordinary sign-in from requesting administrator scope.
+
 The default WSO2 issuer is `https://localhost:9443/oauth2/token`, not the
 Console origin. Its discovery document is therefore:
 
@@ -44,8 +52,8 @@ secret, token, or generated application ID belongs in Git.
 
 ## Frontend configuration contract
 
-Copy `frontend/.env.example` to `.env.local` and replace the client credential
-placeholders. `APP_BASE_URL` is the public browser origin used to derive exact
+Copy `frontend/.env.example` to `.env.local` and replace both client credential
+sets. `APP_BASE_URL` is the public browser origin used to derive exact
 callback URLs. `OIDC_ISSUER` is validated as an absolute HTTP(S) issuer, while
 the client ID and secret remain server-only.
 

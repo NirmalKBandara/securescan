@@ -7,6 +7,8 @@ const valid = {
   OIDC_CLIENT_ID: "secure-scan-client",
   OIDC_CLIENT_SECRET: "development-secret",
   OIDC_ISSUER: "https://localhost:9443/oauth2/token/",
+  OIDC_ADMIN_CLIENT_ID: "secure-scan-admin-client",
+  OIDC_ADMIN_CLIENT_SECRET: "admin-development-secret",
 };
 
 describe("loadOidcConfig", () => {
@@ -19,7 +21,35 @@ describe("loadOidcConfig", () => {
     expect(config.redirectUri).toBe("http://localhost:3000/auth/callback");
     expect(config.postLogoutRedirectUri).toBe("http://localhost:3000/login");
     expect(config.roleClaim).toBe("groups");
+    expect(config.clientKind).toBe("user");
     expect(config.scope).toBe("openid profile email securescan:scan");
+  });
+
+  it("loads a separate privileged client with all required admin scopes", () => {
+    const config = loadOidcConfig(valid, "admin");
+
+    expect(config.clientKind).toBe("admin");
+    expect(config.clientId).toBe("secure-scan-admin-client");
+    expect(config.clientSecret).toBe("admin-development-secret");
+    expect(config.scope).toBe(
+      "openid profile email securescan:scan securescan:admin",
+    );
+  });
+
+  it("fails closed when privileged credentials or scope are incomplete", () => {
+    expect(() => loadOidcConfig({ ...valid, OIDC_ADMIN_CLIENT_ID: "" }, "admin"))
+      .toThrow("OIDC_ADMIN_CLIENT_ID is required");
+    expect(() => loadOidcConfig({
+      ...valid,
+      OIDC_ADMIN_SCOPES: "openid securescan:scan",
+    }, "admin")).toThrow("OIDC_ADMIN_SCOPES must include securescan:admin");
+  });
+
+  it("rejects administrator scope on the ordinary client", () => {
+    expect(() => loadOidcConfig({
+      ...valid,
+      OIDC_SCOPES: "openid securescan:scan securescan:admin",
+    })).toThrow("OIDC_SCOPES must not include securescan:admin");
   });
 
   it("accepts an explicit role claim name", () => {

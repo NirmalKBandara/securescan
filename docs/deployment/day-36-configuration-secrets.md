@@ -46,13 +46,16 @@ reject missing or placeholder application secrets during startup.
 2. Open `https://localhost:9443/console`, replace the image's bootstrap
    password, create the `securescan-user` and `securescan-admin` roles, and
    create the test identities described in the Day 21–25 runbooks.
-3. Register a Traditional Web Application with callback
+3. Register an ordinary Traditional Web Application with callback
    `http://localhost:3000/auth/callback`, logout URL
    `http://localhost:3000/login`, Authorization Code plus PKCE, and the exact
    ordinary `securescan:scan` scope in `OIDC_SCOPES`. Copy its client values
-   into `deployment/.env`. Do not add `securescan:admin` to this ordinary
-   application; the separate browser-admin client/grant flow is not yet
-   implemented.
+   into `deployment/.env`. Do not add `securescan:admin` to this application.
+   Register a second privileged Traditional Web Application with the same exact
+   callback/logout URLs, Authorization Code plus PKCE, and both
+   `securescan:scan` and `securescan:admin`. Store that application's values in
+   `OIDC_ADMIN_CLIENT_ID` and `OIDC_ADMIN_CLIENT_SECRET`. Only administrator
+   identities should be allowed to authorize this client.
 4. Import and publish `deployment/apim/securescan-api`, create the frontend
    application/subscription, install the Day 29 throttling policies, and use
    the same `SECURESCAN_GATEWAY_SHARED_SECRET` in the Gateway mediation policy.

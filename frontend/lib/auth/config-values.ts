@@ -1,5 +1,6 @@
 export interface OidcConfig {
   appBaseUrl: URL;
+  clientKind: OidcClientKind;
   clientId: string;
   clientSecret: string;
   issuer: URL;
@@ -10,14 +11,22 @@ export interface OidcConfig {
   sessionSecret: string;
 }
 
-const DEFAULT_SCOPES = "openid profile email securescan:scan";
+export type OidcClientKind = "user" | "admin";
 
-function oidcScopes(value: string | undefined) {
-  const scopes = (value?.trim() || DEFAULT_SCOPES).split(/\s+/);
+const DEFAULT_USER_SCOPES = "openid profile email securescan:scan";
+const DEFAULT_ADMIN_SCOPES = "openid profile email securescan:scan securescan:admin";
+
+function oidcScopes(
+  name: string,
+  value: string | undefined,
+  defaultScopes: string,
+  requiredScopes: string[],
+) {
+  const scopes = (value?.trim() || defaultScopes).split(/\s+/);
   const uniqueScopes = [...new Set(scopes)];
-  for (const requiredScope of ["openid", "securescan:scan"]) {
+  for (const requiredScope of requiredScopes) {
     if (!uniqueScopes.includes(requiredScope)) {
-      throw new Error(`OIDC_SCOPES must include ${requiredScope}`);
+      throw new Error(`${name} must include ${requiredScope}`);
     }
   }
   return uniqueScopes.join(" ");
@@ -59,6 +68,7 @@ function absoluteHttpUrl(name: string, value: string | undefined) {
 
 export function loadOidcConfig(
   source: Record<string, string | undefined> = process.env,
+  clientKind: OidcClientKind = "user",
 ): OidcConfig {
   const appBaseUrl = absoluteHttpUrl("APP_BASE_URL", source.APP_BASE_URL);
   if (appBaseUrl.pathname !== "/") {
@@ -74,18 +84,32 @@ export function loadOidcConfig(
     throw new Error("AUTH_SESSION_SECRET must contain at least 32 characters");
   }
 
+  const admin = clientKind === "admin";
+  const clientIdName = admin ? "OIDC_ADMIN_CLIENT_ID" : "OIDC_CLIENT_ID";
+  const clientSecretName = admin ? "OIDC_ADMIN_CLIENT_SECRET" : "OIDC_CLIENT_SECRET";
+  const scopeName = admin ? "OIDC_ADMIN_SCOPES" : "OIDC_SCOPES";
+  const scope = oidcScopes(
+    scopeName,
+    source[scopeName],
+    admin ? DEFAULT_ADMIN_SCOPES : DEFAULT_USER_SCOPES,
+    admin
+      ? ["openid", "securescan:scan", "securescan:admin"]
+      : ["openid", "securescan:scan"],
+  );
+  if (!admin && scope.split(" ").includes("securescan:admin")) {
+    throw new Error("OIDC_SCOPES must not include securescan:admin");
+  }
+
   return Object.freeze({
     appBaseUrl,
-    clientId: requiredCredential("OIDC_CLIENT_ID", source.OIDC_CLIENT_ID),
-    clientSecret: requiredCredential(
-      "OIDC_CLIENT_SECRET",
-      source.OIDC_CLIENT_SECRET,
-    ),
+    clientKind,
+    clientId: requiredCredential(clientIdName, source[clientIdName]),
+    clientSecret: requiredCredential(clientSecretName, source[clientSecretName]),
     issuer,
     postLogoutRedirectUri: new URL("/login", appBaseUrl).toString(),
     redirectUri: new URL("/auth/callback", appBaseUrl).toString(),
     roleClaim: source.OIDC_ROLE_CLAIM?.trim() || "groups",
-    scope: oidcScopes(source.OIDC_SCOPES),
+    scope,
     sessionSecret,
   });
 }

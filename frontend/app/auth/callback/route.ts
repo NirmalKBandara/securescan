@@ -12,20 +12,21 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const config = loadOidcConfig();
+  const baseConfig = loadOidcConfig();
   const transaction = readTransaction(
     request.cookies.get(TRANSACTION_COOKIE)?.value,
-    config.sessionSecret,
+    baseConfig.sessionSecret,
   );
 
   if (!transaction) {
     const response = NextResponse.redirect(new URL("/login?error=invalid_transaction", request.url));
-    clearAuthCookies(response, config);
+    clearAuthCookies(response, baseConfig);
     return response;
   }
 
   try {
-    const oidc = await getOidcConfiguration();
+    const config = loadOidcConfig(process.env, transaction.clientKind);
+    const oidc = await getOidcConfiguration(transaction.clientKind);
     const tokens = await client.authorizationCodeGrant(
       oidc,
       request.nextUrl,
@@ -51,6 +52,7 @@ export async function GET(request: NextRequest) {
     response.headers.set("Cache-Control", "no-store");
     setSessionCookie(response, {
       accessToken: tokens.access_token,
+      clientKind: transaction.clientKind,
       email: typeof claims.email === "string" ? claims.email : undefined,
       expiresAt,
       idToken: tokens.id_token,
@@ -69,7 +71,7 @@ export async function GET(request: NextRequest) {
     return response;
   } catch {
     const response = NextResponse.redirect(new URL("/login?error=authentication_failed", request.url));
-    clearAuthCookies(response, config);
+    clearAuthCookies(response, baseConfig);
     return response;
   }
 }

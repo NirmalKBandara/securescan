@@ -23,7 +23,8 @@ done <"${environment_file}"
 required=(
   POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD
   SECURESCAN_GATEWAY_SHARED_SECRET
-  OIDC_CLIENT_ID OIDC_CLIENT_SECRET AUTH_SESSION_SECRET
+  OIDC_CLIENT_ID OIDC_CLIENT_SECRET
+  OIDC_ADMIN_CLIENT_ID OIDC_ADMIN_CLIENT_SECRET AUTH_SESSION_SECRET
   COMPOSE_OIDC_ISSUER
 )
 
@@ -39,7 +40,8 @@ for name in "${required[@]}"; do
   fi
 done
 
-for name in POSTGRES_PASSWORD SECURESCAN_GATEWAY_SHARED_SECRET OIDC_CLIENT_SECRET AUTH_SESSION_SECRET; do
+for name in POSTGRES_PASSWORD SECURESCAN_GATEWAY_SHARED_SECRET OIDC_CLIENT_SECRET \
+  OIDC_ADMIN_CLIENT_SECRET AUTH_SESSION_SECRET; do
   if (( ${#values[${name}]} < 32 )); then
     echo "${name} must contain at least 32 characters." >&2
     exit 1
@@ -109,6 +111,12 @@ done
 if [[ " ${values[OIDC_SCOPES]:-} " != *" openid "* || \
       " ${values[OIDC_SCOPES]:-} " != *" securescan:scan "* ]]; then
   echo "OIDC_SCOPES must include openid and securescan:scan." >&2
+  exit 1
+fi
+if [[ " ${values[OIDC_ADMIN_SCOPES]:-} " != *" openid "* || \
+      " ${values[OIDC_ADMIN_SCOPES]:-} " != *" securescan:scan "* || \
+      " ${values[OIDC_ADMIN_SCOPES]:-} " != *" securescan:admin "* ]]; then
+  echo "OIDC_ADMIN_SCOPES must include openid, securescan:scan, and securescan:admin." >&2
   exit 1
 fi
 if [[ -z "${values[OIDC_ROLE_CLAIM]:-}" ]]; then

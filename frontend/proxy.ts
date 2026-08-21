@@ -23,7 +23,7 @@ export function proxy(request: NextRequest) {
   const login = new URL("/login", request.url);
   login.searchParams.set("returnTo", returnTo);
   const response = NextResponse.redirect(login);
-  if (request.cookies.has(SESSION_COOKIE)) {
+  if (decision !== "reauthenticate" && request.cookies.has(SESSION_COOKIE)) {
     response.cookies.set(SESSION_COOKIE, "", {
       httpOnly: true,
       maxAge: 0,

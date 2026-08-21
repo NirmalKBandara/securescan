@@ -15,7 +15,7 @@ case "${scenario}" in
 Complete the one-time WSO2 setup now:
   1. Replace the bootstrap administrator password.
   2. Create securescan-user and securescan-admin roles and test users.
-  3. Register the exact frontend callback/logout URLs and update deployment/.env.
+  3. Register ordinary and privileged frontend clients with the exact callback/logout URLs and update deployment/.env.
   4. Import/publish the API, configure scopes and subscriptions, and install throttling policies.
   5. Create an allowed target you own and are authorized to scan.
 EOF

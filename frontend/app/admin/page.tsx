@@ -10,5 +10,6 @@ export default async function AdminPage() {
   const session = await getSession();
   if (!session) redirect("/login?returnTo=/admin");
   if (!hasRole(session, APP_ROLES.admin)) redirect("/forbidden");
+  if (session.clientKind !== "admin") redirect("/login?returnTo=/admin");
   return <><PageIntro eyebrow="Administration" title="Platform controls" description="Monitor every scan, investigate denied activity, and maintain the global target policy." /><AdminDashboard /></>;
 }

@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadOidcConfig } from "@/lib/auth/config";
 import { client, getOidcConfiguration } from "@/lib/auth/oidc";
-import { safeReturnTo } from "@/lib/auth/return-to";
+import { isAdminReturnTo, safeReturnTo } from "@/lib/auth/return-to";
 import { setTransactionCookie } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const config = loadOidcConfig();
-    const oidc = await getOidcConfiguration();
+    const returnTo = safeReturnTo(request.nextUrl.searchParams.get("returnTo"));
+    const clientKind = isAdminReturnTo(returnTo) ? "admin" : "user";
+    const config = loadOidcConfig(process.env, clientKind);
+    const oidc = await getOidcConfiguration(clientKind);
     if (!oidc.serverMetadata().supportsPKCE("S256")) {
       throw new Error("The identity provider does not advertise PKCE S256");
     }
@@ -18,7 +20,6 @@ export async function GET(request: NextRequest) {
     const state = client.randomState();
     const nonce = client.randomNonce();
     const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
-    const returnTo = safeReturnTo(request.nextUrl.searchParams.get("returnTo"));
     const destination = client.buildAuthorizationUrl(oidc, {
       client_id: config.clientId,
       code_challenge: codeChallenge,
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.redirect(destination);
     response.headers.set("Cache-Control", "no-store");
     setTransactionCookie(response, {
+      clientKind,
       codeVerifier,
       expiresAt: Date.now() + 10 * 60 * 1000,
       nonce,

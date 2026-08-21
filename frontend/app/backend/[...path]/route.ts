@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { APP_ROLES, hasRole } from "@/lib/auth/authorization";
 import { loadApiProxyConfig } from "@/lib/api/proxy-config";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +63,11 @@ async function proxy(request: NextRequest, context: RouteContext) {
   const { path } = await context.params;
   if (!path.length || path.some((segment) => !segment || segment === "." || segment === "..")) {
     return errorResponse(400, "INVALID_REQUEST", "The API path is invalid");
+  }
+  if (path[0] === "api" && path[1] === "v1" && path[2] === "admin" &&
+      (session.clientKind !== "admin" || !hasRole(session, APP_ROLES.admin))) {
+    return errorResponse(403, "ADMIN_AUTHENTICATION_REQUIRED",
+      "Sign in with the administrator client to use this resource");
   }
 
   const upstream = new URL(`${config.baseUrl}/${path.map(encodeURIComponent).join("/")}`);

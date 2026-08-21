@@ -1,13 +1,15 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getSession } from "@/lib/auth/session";
+import type { AuthSession } from "@/lib/auth/session";
 import { DELETE, GET, POST } from "./route";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/session", () => ({ getSession: vi.fn() }));
 
-const session = {
+const session: AuthSession = {
   accessToken: "identity-server-access-token",
+  clientKind: "user",
   expiresAt: Date.now() + 60_000,
   idToken: "id-token",
   issuer: "https://localhost:9443/oauth2/token",
@@ -182,6 +184,11 @@ describe("authenticated API Manager proxy", () => {
   });
 
   it("forwards allowed-target disable requests through API Manager", async () => {
+    vi.mocked(getSession).mockResolvedValue({
+      ...session,
+      clientKind: "admin",
+      roles: ["securescan-admin"],
+    });
     const upstream = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       success: true,
       data: { id: "target-123", enabled: false },
@@ -205,6 +212,23 @@ describe("authenticated API Manager proxy", () => {
       "https://localhost:8243/securescan/v1/api/v1/admin/allowed-targets/target-123",
     );
     expect(init.method).toBe("DELETE");
+  });
+
+  it("blocks admin API calls made with an ordinary-client session", async () => {
+    const upstream = vi.fn();
+    vi.stubGlobal("fetch", upstream);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/backend/api/v1/admin/usage"),
+      context(["api", "v1", "admin", "usage"]),
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      success: false,
+      error: { code: "ADMIN_AUTHENTICATION_REQUIRED" },
+    });
+    expect(upstream).not.toHaveBeenCalled();
   });
 
   it("returns a predictable timeout envelope", async () => {

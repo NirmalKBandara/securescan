@@ -6,7 +6,7 @@ export const APP_ROLES = Object.freeze({
 } as const);
 
 export type AppRole = (typeof APP_ROLES)[keyof typeof APP_ROLES];
-export type AccessDecision = "allowed" | "forbidden" | "unauthenticated";
+export type AccessDecision = "allowed" | "forbidden" | "reauthenticate" | "unauthenticated";
 
 function claimValues(value: unknown) {
   if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === "string");
@@ -46,7 +46,8 @@ export function authorizePath(
   if (!session) return "unauthenticated";
   if (!isAppMember(session)) return "forbidden";
   if (pathname === "/admin" || pathname.startsWith("/admin/")) {
-    return hasRole(session, APP_ROLES.admin) ? "allowed" : "forbidden";
+    if (!hasRole(session, APP_ROLES.admin)) return "forbidden";
+    return session.clientKind === "admin" ? "allowed" : "reauthenticate";
   }
   return "allowed";
 }

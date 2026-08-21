@@ -23,10 +23,10 @@ deployment gate. The architecture and API documents now describe the deployed
 trust chain rather than future WSO2 integration.
 
 The review also reconciled the current V001–V006 database design,
-encrypted-cookie token boundary, and two-stage WSO2 bootstrap. It identified
-that the ordinary frontend client cannot safely receive the administrator API
-scope; a separate privileged client or incremental grant flow remains a visible
-design gate. Certificate generation and WSO2 keystore/public-URL wiring remain
+encrypted-cookie token boundary, and two-stage WSO2 bootstrap. The later
+administrator OAuth hardening keeps the ordinary client unprivileged and uses a
+separate client bound into the encrypted transaction for `/admin` login.
+Certificate generation and WSO2 keystore/public-URL wiring remain
 explicit operator-owned prerequisites; the repository provides the frontend CA
 mount but does not claim to automate the WSO2 side.
 

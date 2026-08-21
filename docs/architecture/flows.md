@@ -45,9 +45,11 @@ sequenceDiagram
     API-->>Web: Stable JSON + X-Request-ID
 ```
 
-The normal browser client requests `securescan:scan`. The privileged browser
-administrator scope flow remains a documented release limitation; the API
-itself still requires `securescan:admin` and the exact administrator role.
+The normal browser client requests `securescan:scan`. A separate privileged
+browser client is selected only for the safe `/admin` login destination and
+requests `securescan:scan` plus `securescan:admin`. The selected client is
+bound into the encrypted OIDC transaction. API Manager and Ballerina still
+require the administrator scope and exact administrator role independently.
 
 ## Compose deployment
 
@@ -84,4 +86,3 @@ flowchart TB
 
 PostgreSQL, Ballerina, and Go are not published on the host. Network isolation
 reduces accidental reachability but does not replace application controls.
-

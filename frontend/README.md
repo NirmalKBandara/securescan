@@ -28,9 +28,10 @@ only in the ignored `.env.local` file.
 Set `OIDC_ROLE_CLAIM` to the WSO2 claim that carries exact
 `securescan-user` / `securescan-admin` values; it defaults to `groups`.
 `OIDC_SCOPES` must include both `openid` and the API's `securescan:scan` scope.
-The default client deliberately does not request `securescan:admin`; the
-browser-admin OAuth client/grant flow remains an unresolved deployment design
-gate even though the admin UI and protected API resources are implemented.
+The default client deliberately does not request `securescan:admin`. Configure
+the separate `OIDC_ADMIN_CLIENT_ID`, `OIDC_ADMIN_CLIENT_SECRET`, and
+`OIDC_ADMIN_SCOPES` values for administrator sign-in; that scope set must
+include `openid`, `securescan:scan`, and `securescan:admin`.
 
 Build the standalone, non-root runtime image from the repository root:
 
@@ -58,7 +59,11 @@ those hard limits.
 
 ## Authentication
 
-`/auth/login` starts WSO2 Authorization Code with PKCE. `/auth/callback`
+`/auth/login` starts WSO2 Authorization Code with PKCE. A safe `/admin`
+destination selects the separate privileged client; all other destinations use
+the ordinary client. The selected client kind is sealed into the short-lived
+transaction cookie so `/auth/callback` cannot exchange an administrator code
+with the ordinary client or upgrade an ordinary transaction. `/auth/callback`
 validates the state, nonce, PKCE verifier, and signed ID token before issuing a
 bounded encrypted HttpOnly application session. `/auth/logout` accepts POST,
 clears local authentication state, and continues through WSO2 logout when the

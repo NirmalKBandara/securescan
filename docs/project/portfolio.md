@@ -69,7 +69,7 @@ and tests reject missing or weakened security configuration.
 
 ### What would you improve next?
 
-First complete the privileged browser-admin grant and stateful WSO2/Docker
+First complete the live privileged browser-admin and stateful WSO2/Docker
 release evidence. After that, improve operational observability and automated
 WSO2 provisioning without adding new scanner features before the core release
 is demonstrably reproducible.
@@ -77,7 +77,6 @@ is demonstrably reproducible.
 ### What is the most important current limitation?
 
 The source gates pass, but this workspace has not produced the live WSO2 login,
-Gateway, throttling, restart-persistence, and recovery evidence. The ordinary
-browser client also lacks a completed administrator-scope grant. Those are
-explicit release blockers, not hidden follow-up tasks.
-
+Gateway, privileged administrator, throttling, restart-persistence, and
+recovery evidence. Those are explicit release blockers, not hidden follow-up
+tasks.

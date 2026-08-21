@@ -2,7 +2,7 @@
 
 The repository is source-complete for the planned portfolio scope, but it is
 not release-evidence-complete. No release tag was created because the live
-WSO2/Docker demonstration, privileged browser-admin flow, media evidence, and
+WSO2/Docker demonstration, live privileged browser-admin proof, media evidence, and
 external WSO2 contribution are still pending.
 
 ## Audit commands and results
@@ -57,9 +57,9 @@ missing. The scanner retains the final DNS-set/address safety boundary.
 
 The following residual release risks remain visible:
 
-- The normal frontend OAuth client requests only `securescan:scan`; a separate
-  privileged client or safe incremental grant must be implemented and proven
-  for browser administration.
+- The ordinary frontend OAuth client requests only `securescan:scan`; the
+  separate privileged-client flow must still be configured and proven against
+  live WSO2 and API Manager for browser administration.
 - WSO2 certificates, client/role state, API publication, subscription, and
   authorized target rules are operator-managed state and have not been
   exercised in this workspace.
@@ -96,7 +96,8 @@ evidence manifest.
 
 ## Release procedure
 
-1. Resolve and test the privileged browser-admin OAuth flow.
+1. Register both frontend OAuth clients and test the privileged browser-admin
+   flow against WSO2 and API Manager.
 2. Run the Day 37 six-service recovery gate on a Docker-capable host.
 3. Capture and redact every Day 41 artifact and record the video/contribution
    URLs in `deployment/evidence/day-41/manifest.txt`.
@@ -107,4 +108,3 @@ evidence manifest.
 Until every step passes, describe the project as a source-complete local
 portfolio system with pending stateful release evidence—not as a released or
 production-ready service.
-

@@ -87,10 +87,10 @@ The responsive dashboard provides:
 Requests go through the existing same-origin `/backend` route. Access tokens and
 the Gateway shared secret are available only to server-side route code after
 the session cookie is unsealed. The default ordinary frontend client requests
-only `securescan:scan`, while API Manager correctly requires
-`securescan:admin` for these resources. A separate privileged client or safe
-incremental authorization flow has not been implemented, so the default live
-browser session cannot yet prove the dashboard-to-Gateway admin path.
+only `securescan:scan`, while a safe `/admin` login destination selects a
+separate privileged client that also requests `securescan:admin`. The selected
+client kind is sealed into the OIDC transaction and API Manager still requires
+the administrator scope for every protected operation.
 
 ## Verification
 
@@ -123,7 +123,6 @@ and all collection bounds are enforced before database access.
 
 The repository checkpoint satisfies the UI, Ballerina, and API contract
 requirements: administrator behavior is implemented and a normal user is
-rejected by the route and API authorization layers. The default frontend token
-does not carry `securescan:admin`; a privileged browser grant/client flow and
-its live WSO2 evidence remain required before claiming the end-to-end admin
-dashboard path is deployable.
+rejected by the route and API authorization layers. The separate privileged
+client flow is source-tested; its live WSO2 registration and evidence remain
+required before claiming the end-to-end admin dashboard path is deployable.

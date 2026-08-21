@@ -10,7 +10,7 @@ target policy, inspect audit events, and review usage across users.
 
 ## Project status
 
-The Day 39 repository checkpoint is complete. The application, API contracts,
+The Day 40 repository documentation checkpoint is complete. The application, API contracts,
 database migrations, local six-service topology, security controls, automated
 tests, and maintained documentation are present in the repository.
 
@@ -59,6 +59,8 @@ events.
 
 See the [maintained architecture](docs/architecture/architecture-v1.md) for
 trust boundaries, networks, lifecycle, and failure behavior.
+The [diagram set](docs/architecture/flows.md) separately visualizes the system,
+login/API request flow, and Compose networks.
 
 ## Components
 
@@ -188,6 +190,7 @@ Public and internal schemas are documented separately in the
 - [x] Configuration, secret, integration, and recovery procedures
 - [x] Cross-stack automated tests and continuous integration
 - [x] Complete maintained project documentation
+- [x] Reconcile OpenAPI and architecture/login/deployment diagrams
 - [ ] Complete the privileged browser-admin OAuth scope flow
 - [ ] Capture the live Day 37 deployment evidence on a Docker-capable host
 

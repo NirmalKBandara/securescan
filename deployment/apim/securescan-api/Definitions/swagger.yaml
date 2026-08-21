@@ -19,6 +19,27 @@ tags:
 security:
   - oauth2: [securescan:scan]
 paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Read the Ballerina service liveness state
+      description: >-
+        Private service health endpoint used by Compose. API Manager does not
+        need to publish this operation to external consumers.
+      security: []
+      responses:
+        '200':
+          description: Ballerina listener is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                success: true
+                data:
+                  status: ok
+                  serviceName: securescan-api
   /api/v1/scans:
     post:
       tags: [Scans]
@@ -188,6 +209,11 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateAllowedTargetRequest'
+            example:
+              targetKind: HOSTNAME
+              target: scanme.nmap.org
+              startPort: 1
+              endPort: 100
       responses:
         '201':
           description: Allowed target created and audited
@@ -431,6 +457,25 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          additionalProperties: false
+          required: [status, serviceName]
+          properties:
+            status:
+              type: string
+              enum: [ok]
+            serviceName:
+              type: string
+              example: securescan-api
     CreateScanRequest:
       type: object
       additionalProperties: false
@@ -743,3 +788,9 @@ components:
           enum: [false]
         error:
           $ref: '#/components/schemas/ApiError'
+      example:
+        success: false
+        error:
+          code: INVALID_PORT_RANGE
+          message: Port range must contain at most 1000 ports
+          requestId: 710ee544-7f9c-4ef0-a4c0-1d430ae649bf

@@ -14,6 +14,7 @@ day-by-day checkpoint record. Start with the path that matches your task.
 5. [Day 39 documentation checkpoint](project/day-39-documentation.md)
 6. [Current architecture and flow diagrams](architecture/flows.md)
 7. [Day 40 OpenAPI checkpoint](project/day-40-openapi-documentation.md)
+8. [Day 41 clean-room and evidence record](project/day-41-clean-room-evidence.md)
 
 ### Run the local platform
 
@@ -65,7 +66,7 @@ time, and any evidence that still requires a suitable runtime.
 - Gateway: [Day 26](gateway/day-26-wso2-api-manager.md), [Day 27](gateway/day-27-api-manager-publishing.md), [Day 28](gateway/day-28-gateway-routing.md), [Day 29](gateway/day-29-api-throttling.md)
 - Security: [Day 30](security/day-30-allowed-target-administration.md), [Day 31](security/day-31-target-authorization.md), [Day 33](security/day-33-security-checkpoint.md)
 - Deployment: [Day 34](deployment/day-34-application-dockerfiles.md), [Day 35](deployment/day-35-full-compose-topology.md), [Day 36](deployment/day-36-configuration-secrets.md), [Day 37](deployment/day-37-compose-recovery.md)
-- Quality: [Day 38](testing/day-38-automated-tests.md), [Day 39](project/day-39-documentation.md), [Day 40](project/day-40-openapi-documentation.md)
+- Quality: [Day 38](testing/day-38-automated-tests.md), [Day 39](project/day-39-documentation.md), [Day 40](project/day-40-openapi-documentation.md), [Day 41](project/day-41-clean-room-evidence.md)
 
 ## Documentation rules
 

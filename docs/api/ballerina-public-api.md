@@ -17,6 +17,23 @@ Every public scan response includes an `X-Request-ID` header. Error response
 bodies contain the same value in `error.requestId`, allowing an operator to
 correlate a safe client error with the corresponding application logs.
 
+## GET /health
+
+Returns `200 OK` with the Ballerina service name and `ok` status. This endpoint
+does not require end-user authentication because it discloses no configuration
+or dependency state. Compose uses it for listener liveness; API Manager does
+not need to expose it to external consumers.
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "ok",
+    "serviceName": "securescan-api"
+  }
+}
+```
+
 ## POST /api/v1/scans
 
 Validates an authorized scan request, commits a durable `QUEUED` job, and then
@@ -193,6 +210,16 @@ never returned to public clients.
 | `PERSISTENCE_UNAVAILABLE` | 503 | PostgreSQL cannot serve the scan operation |
 | `JOB_LIMIT_REACHED` | 429 | The owner already has the configured maximum active jobs |
 | `INTERNAL_ERROR` | 500 | Unexpected internal or downstream response |
+| `AUTHENTICATION_REQUIRED` | 401 | Gateway authentication is missing or invalid |
+| `FORBIDDEN` | 403 | Identity lacks the required exact role or ownership |
+| `REQUEST_TOO_LARGE` | 413 | JSON body exceeds the configured size limit |
+| `ALLOWED_TARGET_EXISTS` | 409 | An equivalent enabled target policy already exists |
+| `ALLOWED_TARGET_NOT_FOUND` | 404 | The requested target policy does not exist |
+
+The machine-readable [OpenAPI document](../../deployment/apim/securescan-api/Definitions/swagger.yaml)
+is the operation and schema source of truth. It includes all ten Ballerina
+resources: health, three user scan operations, three administrator reporting
+operations, and three allowed-target operations.
 
 ## Dispatch recovery guarantee
 

@@ -10,7 +10,7 @@ target policy, inspect audit events, and review usage across users.
 
 ## Project status
 
-The Day 40 repository documentation checkpoint is complete. The application, API contracts,
+The Day 41 clean-room source checkpoint is complete. The application, API contracts,
 database migrations, local six-service topology, security controls, automated
 tests, and maintained documentation are present in the repository.
 
@@ -97,6 +97,17 @@ Run a single boundary while developing:
 ./scripts/verify.sh frontend
 ./scripts/verify.sh repository
 ```
+
+To prove that ignored files and an existing dependency tree are not masking a
+problem, run the same source gate from a temporary archive of committed `HEAD`:
+
+```sh
+./scripts/verify-clean-room.sh all
+```
+
+The [Day 41 evidence record](docs/project/day-41-clean-room-evidence.md) records
+the observed clean-room result and keeps the pending WSO2/Docker screenshots
+and demonstration separate from source verification.
 
 The repository gate checks shell syntax, local Markdown links, secret patterns,
 and whitespace. PostgreSQL verification runs in CI against a disposable
@@ -191,6 +202,8 @@ Public and internal schemas are documented separately in the
 - [x] Cross-stack automated tests and continuous integration
 - [x] Complete maintained project documentation
 - [x] Reconcile OpenAPI and architecture/login/deployment diagrams
+- [x] Pass all source gates from a clean tracked-files-only checkout
+- [ ] Capture redacted WSO2, Gateway, container, persistence, admin, and video evidence
 - [ ] Complete the privileged browser-admin OAuth scope flow
 - [ ] Capture the live Day 37 deployment evidence on a Docker-capable host
 
